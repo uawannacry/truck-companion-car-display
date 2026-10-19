@@ -4,8 +4,11 @@ Changes to the Truck Dash client, newest first. Each release on GitHub
 shows its own section from this file. The web app at trucksim-dash.com
 updates on its own and is not versioned here.
 
-## 1.5.32 (unreleased)
+## 1.5.32 (2026-10-17)
 
+- License: from this version Truck Dash is under the GNU AGPL v3 instead of MIT. Nothing changes for
+  using it; forks that publish a modified version, or run it as a service, have to publish their
+  source too. The telemetry plugin stays MIT. Earlier versions stay under MIT.
 - In-game overlay: the lane arrows from the dashboard show up under the next turn at junctions with
   several lanes, with the ones for your turn in blue.
 - In-game overlay: a new route bar (Setup, Show, Fuel and rest stops) from where you are to your
@@ -32,6 +35,11 @@ updates on its own and is not versioned here.
 - Build my map also saves the logo of every company on your map, including the ones your mods add,
   so the dashboard's map and company search show them on your own map too. Maps built with an
   older version still show the logos of the base game and the supported mods.
+- Build my map reads mods packed in the older .scs format (HashFS v1), like the EAA map or RusMap.
+  Before, they were skipped as "invalid" and the map came out without them. Encrypted files inside
+  a mod are still skipped.
+- Build my map: a standalone map that replaces Europe (like Grand Utopia) is built on its own, and a
+  map mod that ships a standalone map next to the connected one (RusMap) no longer stops the build.
 
 ## 1.5.31 (2026-10-13)
 

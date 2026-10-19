@@ -24,3 +24,11 @@ plugin/scs-telemetry/vs2012/Debug/
 
 # Armador de mapas armado en local (builder/build.sh)
 builder/dist/
+
+# Release archives and build folders
+build/
+dist/
+client/release-macos/
+client/*.zip
+tools/build_carplay_*.py
+tools/patch_carplay_*.py

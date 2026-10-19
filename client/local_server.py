@@ -26,13 +26,30 @@ import http.server
 import json
 import logging
 import os
+import shutil
 import socket
+import sys
 import threading
 from urllib.parse import parse_qs, urlencode, urlsplit
 
 import red
 
 import client as client_lib
+
+_LOCAL_OVERRIDE_FILES = {"app/index.html", "app/pure.js", "app/app.js", "app/app.css", "dash/index.html", "dash/page.js"}
+
+
+def _local_override_path(rel: str) -> str | None:
+    if rel not in _LOCAL_OVERRIDE_FILES:
+        return None
+    here = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
+    for candidate in (
+        os.path.join(here, "web_overrides", *rel.split("/")),
+        os.path.join(os.path.dirname(here), "docs", *rel.split("/")),
+    ):
+        if os.path.isfile(candidate):
+            return candidate
+    return None
 
 # Overridables por env para correr una segunda instancia (desarrollo) al lado del .exe.
 HTTP_PORT = int(os.environ.get("TRUCKDASH_HTTP_PORT", 27765))
@@ -111,6 +128,11 @@ def refresh_web_cache() -> bool:
     for rel in WEB_FILES:
         local = os.path.join(target, rel.replace("/", os.sep))
         os.makedirs(os.path.dirname(local), exist_ok=True)
+        override = _local_override_path(rel)
+        if override:
+            shutil.copyfile(override, local)
+            ok += 1
+            continue
         # Las librerias llevan la version en el nombre y no cambian nunca:
         # no hace falta volver a bajar un mega en cada arranque.
         versionado = rel.startswith("app/vendor/") or (rel.startswith("app/voice/") and rel != "app/voice/voices.json")
@@ -283,7 +305,9 @@ class _StaticHandler(http.server.SimpleHTTPRequestHandler):
         super().do_GET()
 
     def end_headers(self):
-        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
         self.send_header("Access-Control-Allow-Origin", "*")
         super().end_headers()
 
@@ -296,6 +320,14 @@ def _refresh_file(rel: str, local_path: str) -> bool:
     (sin internet, 404) - el llamador usa la copia anterior si existe."""
     if ".." in rel:
         return False
+    override = _local_override_path(rel)
+    if override:
+        try:
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            shutil.copyfile(override, local_path)
+            return True
+        except Exception:
+            return False
     try:
         with red.abrir(f"{WEB_ORIGIN}/{rel}", timeout=6) as resp:
             data = resp.read()

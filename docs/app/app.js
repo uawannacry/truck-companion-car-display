@@ -568,10 +568,9 @@ function sendLiveShareState(explicit = false) {
   // El apodo de convoy (si lo puso) es lo unico con nombre que se muestra en el mapa en vivo.
   const nick = liveShareEnabled ? (loadSettings().convoyNick || null) : null;
   ws.send(JSON.stringify({ type: 'set_live_share', enabled: liveShareEnabled, mapVariant, nick, explicit: !!explicit }));
-  if (liveShareNoticePending && liveShareEnabled && !conn.demo && !conn.spectator) {
+  if (liveShareNoticePending) {
     liveShareNoticePending = false;
-    saveSettings(); // persiste liveShareV2: el aviso es una sola vez
-    showToast(t('liveShareNotice'), 'info', 12000);
+    saveSettings();
   }
 }
 
@@ -3500,13 +3499,49 @@ function renderRouteSummary(view) {
   document.getElementById('mapPanel').classList.toggle('hasRouteSummary', !!view);
   if (view && view.offMap) document.getElementById('routeOffMapText').textContent = t('routeOffMap').replace('{name}', view.offMap);
   keepPanelsClearOfRouteSummary();
-  if (!view || view.dismissed || view.offMap) return;
+  if (!view || view.dismissed || view.offMap) {
+    if (lastData && lastData.routeDistanceKm > 0) {
+      const distStr = `${formatDec(useImperial ? lastData.routeDistanceKm * KM_TO_MI : lastData.routeDistanceKm, currentLang)} ${useImperial ? 'mi' : 'km'}`;
+      const sec = (routeSummaryEtaSeconds != null && routeSummaryEtaSeconds > 0)
+        ? routeSummaryEtaSeconds
+        : (lastData.routeTimeSeconds || ((lastData.routeDistanceKm / 62) * 3600 / 19));
+      const durStr = formatSeconds(sec);
+      const arrDate = new Date(Date.now() + sec * 1000);
+      const arrStr = formatClockHM(arrDate.getHours(), arrDate.getMinutes(), hour12());
+      const cpRemain = document.getElementById('cpEtaRemain');
+      if (cpRemain) cpRemain.textContent = durStr;
+      const cpArrival = document.getElementById('cpEtaArrival');
+      if (cpArrival) cpArrival.textContent = arrStr;
+      const cpDist = document.getElementById('cpEtaDist');
+      if (cpDist) cpDist.textContent = distStr;
+      const routeRemaining = document.getElementById('routeRemaining');
+      if (routeRemaining) routeRemaining.textContent = distStr;
+      const routeDuration = document.getElementById('routeDuration');
+      if (routeDuration) routeDuration.textContent = durStr;
+      const routeArrival = document.getElementById('routeArrival');
+      if (routeArrival) routeArrival.textContent = arrStr;
+    } else {
+      const cpRemain = document.getElementById('cpEtaRemain');
+      if (cpRemain) cpRemain.textContent = '--';
+      const cpArrival = document.getElementById('cpEtaArrival');
+      if (cpArrival) cpArrival.textContent = '--:--';
+      const cpDist = document.getElementById('cpEtaDist');
+      if (cpDist) cpDist.textContent = '--';
+    }
+    return;
+  }
   const bar = document.getElementById('routeProgressBar');
   bar.style.width = `${view.percent}%`;
   bar.parentElement.title = `${Math.round(view.percent)}%`;
   document.getElementById('routeRemaining').textContent = view.remaining;
   document.getElementById('routeDuration').textContent = view.duration;
   document.getElementById('routeArrival').textContent = view.arrival;
+  const cpRemain = document.getElementById('cpEtaRemain');
+  if (cpRemain) cpRemain.textContent = view.duration;
+  const cpArrival = document.getElementById('cpEtaArrival');
+  if (cpArrival) cpArrival.textContent = view.arrival;
+  const cpDist = document.getElementById('cpEtaDist');
+  if (cpDist) cpDist.textContent = view.remaining;
   // Cuando el destino es el centro de la ciudad y no la empresa, se dice.
   // Un error de ~900 m sin explicacion se lee como un destino equivocado.
   // La proxima parada propia, a la vista con su boton para saltearla: antes
@@ -3973,9 +4008,9 @@ function navPadding() {
 function applyNavCamera() {
   if (!map) return;
   if (navCameraOn()) {
-    map.easeTo({ pitch: nav3d ? 58 : 0, padding: navPadding(), duration: 400 });
+    map.easeTo({ pitch: nav3d ? 58 : 0, bearing: lastHeadingDeg, padding: navPadding(), duration: 400 });
   } else {
-    map.easeTo({ pitch: 0, bearing: 0, padding: navPadding(), duration: 300 });
+    map.easeTo({ pitch: 0, bearing: lastHeadingDeg, padding: navPadding(), duration: 300 });
   }
   document.getElementById('tilt3dBtn').classList.toggle('active', navMode && nav3d);
   document.getElementById('tilt3dBtn').style.display = navMode && !liteMode ? '' : 'none';
@@ -4476,7 +4511,7 @@ function snapNavCamera() {
   if (!map) return;
   stopFrameJob('camera');
   const nav = navCameraOn();
-  map.jumpTo({ pitch: nav && nav3d ? 58 : 0, padding: navPadding(), ...(nav ? {} : { bearing: 0 }) });
+  map.jumpTo({ pitch: nav && nav3d ? 58 : 0, padding: navPadding(), bearing: lastHeadingDeg });
 }
 
 function refreshPipMode() {
@@ -4624,15 +4659,118 @@ let navPanelParts = null; // lo ultimo que mostro el panel, para el mini-HUD
 const turnAnnouncer = createTurnAnnouncer();
 // Los ultimos avisos mostrados, para "Copy turn report" (createTurnLog)
 const turnLog = createTurnLog();
+function carplayTurnIconHtml(info) {
+  const svg = (inner) => `<svg viewBox="0 0 24 28" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${inner}</svg>`;
+  if (!info || typeof info !== 'object') {
+    return svg(`<path d="M12 25V5"/><polygon points="6,11 12,4.5 18,11" fill="#ffffff" stroke="none"/>`);
+  }
+
+  if (info.kind === 'roundabout') {
+    const exit = Number.isInteger(info.exit) && info.exit > 0 && info.exit < 100 ? info.exit : '';
+    return svg(`
+      <circle cx="12" cy="11.5" r="7" stroke="rgba(255,255,255,0.4)" stroke-width="2.4" stroke-dasharray="2.5 3"/>
+      <path d="M12 25v-6.5"/>
+      <path d="M5 11.5a7 7 0 1 1 14 0 7 7 0 0 1-7 7"/>
+      <polygon points="12,15 15,18.5 12,22" fill="#ffffff" stroke="none"/>
+      ${exit ? `<text x="12" y="14.5" text-anchor="middle" font-size="9" font-weight="900" font-family="-apple-system, system-ui, sans-serif" fill="#ffffff" stroke="none">${exit}</text>` : ''}
+    `);
+  }
+
+  const left = info.direction === 'left';
+  if (info.kind === 'turn') {
+    if (left) {
+      return svg(`<path d="M17 25v-9a6 6 0 0 0-6-6H4.5"/><polygon points="9,5 3,10 9,15" fill="#ffffff" stroke="none"/>`);
+    } else {
+      return svg(`<path d="M7 25v-9a6 6 0 0 1 6-6h6.5"/><polygon points="15,5 21,10 15,15" fill="#ffffff" stroke="none"/>`);
+    }
+  }
+
+  if (info.kind === 'fork') {
+    if (left) {
+      return svg(`<path d="M15 25v-10c0-2.5-1.2-5-3.5-7l-5.5-4"/><polygon points="10,3.5 4,4 5.5,10" fill="#ffffff" stroke="none"/>`);
+    } else {
+      return svg(`<path d="M9 25v-10c0-2.5 1.2-5 3.5-7l5.5-4"/><polygon points="14,3.5 20,4 18.5,10" fill="#ffffff" stroke="none"/>`);
+    }
+  }
+
+  if (info.direction === 'uturn') {
+    return svg(`<path d="M17 25v-13a5.5 5.5 0 0 0-11 0v13"/><polygon points="10,20 6,25 2,20" fill="#ffffff" stroke="none"/>`);
+  }
+
+  return svg(`<path d="M12 25V5"/><polygon points="6,11 12,4.5 18,11" fill="#ffffff" stroke="none"/>`);
+}
+
+function updateCarplayTurnCard(turn, parts) {
+  const card = document.getElementById('carplayTurnCard');
+  if (!card) return;
+  card.hidden = false;
+  const icon = document.getElementById('cpTurnIcon');
+  const dist = document.getElementById('cpTurnDist');
+  const street = document.getElementById('cpTurnStreet');
+  const next = document.getElementById('cpTurnNext');
+  const lanes = document.getElementById('cpTurnLanes');
+  const city = document.getElementById('cpTurnCity');
+
+  if (!parts || !parts.info) {
+    const dst = (lastData && lastData.cityDst) || (viaje && viaje.cityDst);
+    if (icon) icon.innerHTML = carplayTurnIconHtml(null);
+    const hasNav = lastData && lastData.routeDistanceKm > 0;
+    if (dist) dist.textContent = dst ? (t('continue') || 'Continue') : (hasNav ? 'Active Route' : 'Free Drive');
+    if (street) street.textContent = dst ? `Heading toward ${dst}` : (hasNav ? 'Follow in-game GPS' : 'Follow the road');
+    if (next) next.hidden = true;
+    if (lanes) lanes.innerHTML = '';
+    if (city) city.textContent = dst || (hasNav ? 'In-Game Navigation' : '');
+    const island = document.getElementById('cpFloatingTurnIsland');
+    if (island) island.style.display = 'none';
+    return;
+  }
+
+  const island = document.getElementById('cpFloatingTurnIsland');
+  if (island) island.style.display = '';
+
+  if (icon) icon.innerHTML = carplayTurnIconHtml(parts.info);
+  if (dist) {
+    if (parts.info && Number.isFinite(parts.info.meters)) {
+      dist.textContent = formatTurnDistance(parts.info.meters, useImperial, currentLang);
+    } else {
+      dist.textContent = '';
+    }
+  }
+  if (street) street.textContent = turnTextWithoutArrow(parts.text) || t('navStraight');
+  if (next) {
+    if (parts.next) {
+      next.hidden = false;
+      next.textContent = parts.next;
+    } else {
+      next.hidden = true;
+    }
+  }
+  if (lanes) lanes.innerHTML = lanesHtml(parts.lanes) || '';
+  if (city) {
+    city.textContent = (lastData && lastData.cityDst) || parts.nextCity || '';
+  }
+  const islandIcon = document.getElementById('islandTurnIcon');
+  if (islandIcon) islandIcon.innerHTML = carplayTurnIconHtml(parts.info);
+  const islandDist = document.getElementById('islandTurnDist');
+  if (islandDist) {
+    islandDist.textContent = (parts.info && Number.isFinite(parts.info.meters))
+      ? formatTurnDistance(parts.info.meters, useImperial, currentLang) : '';
+  }
+  const islandStreet = document.getElementById('islandTurnStreet');
+  if (islandStreet) islandStreet.textContent = turnTextWithoutArrow(parts.text) || t('navStraight');
+}
+
 function updateNavPanel(turn) {
   if (lastData && dismissedRouteIdentity === routeIdentity(lastData)) {
     document.getElementById('navPanel').style.display = 'none';
+    updateCarplayTurnCard(null, null);
     return;
   }
   const panel = document.getElementById('navPanel');
   panel.innerHTML = navPanelHtml(turn);
   panel.style.display = 'block';
   navPanelParts = navTurnParts(turn);
+  updateCarplayTurnCard(turn, navPanelParts);
   // Lector de pantalla: el giro una vez por maniobra, no en cada dato
   const aviso = turnAnnouncer.next(turn, navPanelParts && navPanelParts.text);
   if (aviso) document.getElementById('navLive').textContent = aviso;
@@ -5293,6 +5431,9 @@ function updateMap(position, game, gameHeadingDeg) {
       headingRef = null;
       currentRouteTarget = null;
       currentRouteWorldPoints = null;
+      if (Number.isFinite(gameHeadingDeg)) {
+        lastHeadingDeg = gridHeadingToGeo(gameHeadingDeg, position.x, position.z, toLngLat);
+      }
     } else if (Number.isFinite(gameHeadingDeg)) {
       // El juego lo dice: no hay cuerda ni base minima ni espera a moverse.
       // Anda igual girando parado o yendo marcha atras, dos casos donde
@@ -5324,6 +5465,8 @@ function updateMap(position, game, gameHeadingDeg) {
       }
       lastHeadingDeg = angleDeg;
     }
+  } else if (Number.isFinite(gameHeadingDeg)) {
+    lastHeadingDeg = gridHeadingToGeo(gameHeadingDeg, position.x, position.z, toLngLat);
   }
   lastWorldPos = { x: position.x, z: position.z };
   if (!conn.demo && !conn.spectator && mapBounds && offMapWarnedFor !== currentGame
@@ -5402,10 +5545,10 @@ function updateMap(position, game, gameHeadingDeg) {
     }
   } else if (autoFollow) {
     if (!justJumped && prevLngLat) {
-      followCameraTo({ center: lngLat }, moveAnimMs());
+      followCameraTo({ center: lngLat, bearing: lastHeadingDeg }, moveAnimMs());
     } else {
       stopFrameJob('camera');
-      map.jumpTo({ center: lngLat });
+      map.jumpTo({ center: lngLat, bearing: lastHeadingDeg });
     }
   }
 
@@ -5416,6 +5559,7 @@ function formatSeconds(totalSeconds) {
   if (totalSeconds == null || !isFinite(totalSeconds)) return '-';
   const h = Math.floor(totalSeconds / 3600);
   const m = Math.floor((totalSeconds % 3600) / 60);
+  if (h === 0) return `${Math.max(1, m)} min`;
   return `${h}h ${m}m`;
 }
 
@@ -5478,10 +5622,19 @@ function updateGameClock(gameTimeMinutes) {
   const row = document.getElementById('gameClockRow');
   const clock = gameClockFromMinutes(gameTimeMinutes);
   row.hidden = !clock;
-  if (!clock) return;
+  const dockClockEl = document.getElementById('dockClock');
+  if (!clock) {
+    if (dockClockEl) {
+      const now = new Date();
+      dockClockEl.textContent = formatClockHM(now.getHours(), now.getMinutes(), hour12());
+    }
+    return;
+  }
   const ref = new Date(Date.UTC(2024, 0, 1 + clock.dayIndex));
   const day = ref.toLocaleDateString(currentLang, { weekday: 'short', timeZone: 'UTC' });
-  document.getElementById('gameClock').textContent = `${day} ${formatClockHM(clock.hours, clock.minutes, hour12())}`;
+  const hm = formatClockHM(clock.hours, clock.minutes, hour12());
+  document.getElementById('gameClock').textContent = `${day} ${hm}`;
+  if (dockClockEl) dockClockEl.textContent = hm;
 }
 
 // Escala de tiempo del juego (minutos de juego por minuto real). Se mide en
@@ -5504,7 +5657,11 @@ function measuredTimeScale(data) {
 function computeRealEtaSeconds(data) {
   if (!data.routeDistanceKm || data.ts == null) return null;
   const scale = measuredTimeScale(data);
-  const prior = data.routeTimeSeconds != null && data.routeTimeSeconds > 0 ? data.routeTimeSeconds / scale : null;
+  let prior = data.routeTimeSeconds != null && data.routeTimeSeconds > 0 ? data.routeTimeSeconds / scale : null;
+  if (prior == null && data.routeDistanceKm > 0) {
+    const fallbackGameSec = (data.routeDistanceKm / 62) * 3600;
+    prior = fallbackGameSec / (scale || 19);
+  }
   paceEta.push(data.cityDst, data.ts, data.routeDistanceKm);
   // Se queda el ultimo bueno: despues de borrar la ruta el ritmo vuelve a
   // medirse de cero, y el ETA con waypoint no tiene por que quedar en blanco.
@@ -5638,13 +5795,266 @@ document.querySelectorAll('.panelTab').forEach(tab => {
   tab.addEventListener('click', () => {
     document.querySelectorAll('.panelTab').forEach(b => b.classList.toggle('active', b === tab));
     document.getElementById('infoPanel').classList.toggle('gaugesView', tab.dataset.view === 'gauges');
+    if (typeof syncCabinDock === 'function') syncCabinDock();
     if (lastData) renderGauges(lastData);
   });
 });
 
+function formatMusicSec(sec) {
+  if (sec == null || sec < 0 || !isFinite(sec)) return '0:00';
+  const s = Math.floor(sec);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r < 10 ? '0' : ''}${r}`;
+}
+
+let renderedTracksCacheKey = '';
+let lastActiveTrackIdx = -1;
+let lastPlayingState = null;
+let isMusicScrubbing = false;
+let showRemainingTime = false;
+let lastMusicState = null;
+let gestureMoved = false;
+
+function updateMusicPlayer(music) {
+  lastMusicState = music;
+  const card = document.getElementById('musicCard');
+  const pill = document.getElementById('miniMusicPill');
+  const dockMusicBtn = document.getElementById('dockMusicBtn');
+  if (!card) return;
+
+  const playing = !!(music && music.playing);
+  card.classList.toggle('playing', playing);
+  if (dockMusicBtn) dockMusicBtn.classList.toggle('playing', playing);
+
+  const titleText = (music && music.title) ? music.title : 'No track playing';
+  const artistText = (music && music.artist) ? music.artist : 'ETS2 In-Game Library';
+
+  document.getElementById('musicStatusLabel').textContent = playing ? 'NOW PLAYING' : 'MUSIC LIBRARY';
+  document.getElementById('musicTrackIdx').textContent =
+    (music && music.index && music.total) ? `${music.index} / ${music.total}` : '';
+  document.getElementById('musicTitle').textContent = titleText;
+  document.getElementById('musicArtist').textContent = artistText;
+
+  const playIcon = document.getElementById('musicPlayIcon');
+  const pauseIcon = document.getElementById('musicPauseIcon');
+  if (playIcon && pauseIcon) {
+    playIcon.style.display = playing ? 'none' : '';
+    pauseIcon.style.display = playing ? '' : 'none';
+  }
+
+  const progWrap = document.getElementById('musicProgressWrap');
+  if (progWrap) {
+    if (music && music.progress != null && music.durationSec) {
+      progWrap.hidden = false;
+      document.getElementById('musicProgressBar').style.width = `${Math.round(music.progress * 100)}%`;
+      document.getElementById('musicElapsed').textContent = formatMusicSec(music.elapsedSec || 0);
+      document.getElementById('musicDuration').textContent = formatMusicSec(music.durationSec);
+    } else {
+      progWrap.hidden = true;
+    }
+  }
+
+  const nextEl = document.getElementById('musicNextLine');
+  if (nextEl) {
+    if (music && music.nextTitle) {
+      nextEl.hidden = false;
+      nextEl.textContent = `Next: ${music.nextTitle}`;
+    } else {
+      nextEl.hidden = true;
+    }
+  }
+
+  if (pill) {
+    if (music && music.title) {
+      pill.hidden = false;
+      document.getElementById('miniMusicTitle').textContent = music.title;
+      document.getElementById('miniMusicArtist').textContent = music.artist || '';
+      const miniPlay = document.getElementById('miniMusicPlayBtn');
+      if (miniPlay) miniPlay.textContent = playing ? '⏸' : '▶';
+    } else {
+      pill.hidden = true;
+    }
+  }
+
+  // Update Full Apple Music CarPlay App
+  const fullTitle = document.getElementById('fullMusicTitle');
+  if (fullTitle) fullTitle.textContent = titleText;
+  const fullArtist = document.getElementById('fullMusicArtist');
+  if (fullArtist) fullArtist.textContent = artistText;
+
+  if (!isMusicScrubbing) {
+    const progPct = (music && music.progress != null) ? Math.min(100, Math.max(0, Math.round(music.progress * 100))) : 0;
+    const fullProg = document.getElementById('fullMusicProgressBar');
+    if (fullProg) {
+      fullProg.style.width = `${progPct}%`;
+    }
+    const fullThumb = document.getElementById('fullMusicProgressThumb');
+    if (fullThumb) {
+      fullThumb.style.left = `${progPct}%`;
+    }
+    const fullElapsed = document.getElementById('fullMusicElapsed');
+    if (fullElapsed) fullElapsed.textContent = formatMusicSec((music && music.elapsedSec) || 0);
+    const fullDur = document.getElementById('fullMusicDuration');
+    if (fullDur) {
+      if (showRemainingTime && music && music.durationSec) {
+        const remSec = Math.max(0, (music.durationSec || 0) - ((music && music.elapsedSec) || 0));
+        fullDur.textContent = `-${formatMusicSec(remSec)}`;
+      } else {
+        fullDur.textContent = formatMusicSec((music && music.durationSec) || 0);
+      }
+    }
+  }
+
+  const fullPlay = document.getElementById('fullMusicPlayIcon');
+  const fullPause = document.getElementById('fullMusicPauseIcon');
+  if (fullPlay && fullPause) {
+    fullPlay.style.display = playing ? 'none' : '';
+    fullPause.style.display = playing ? '' : 'none';
+  }
+  const queueIdx = document.getElementById('cpMusicQueueIdx');
+  if (queueIdx) {
+    queueIdx.textContent = (music && music.index && music.total) ? `Track ${music.index} of ${music.total}` : 'In-Game Library';
+  }
+
+  // Render Full Playlist Queue with Interactive Track Jump
+  const queueList = document.getElementById('cpQueueList');
+  if (queueList) {
+    if (music && Array.isArray(music.tracks) && music.tracks.length > 0) {
+      const currentTrackKey = music.tracks.map(t => t.title).join('|');
+      if (renderedTracksCacheKey !== currentTrackKey) {
+        renderedTracksCacheKey = currentTrackKey;
+        queueList.innerHTML = music.tracks.map((t, i) => {
+          const numStr = (i + 1) < 10 ? `0${i + 1}` : `${i + 1}`;
+          const durStr = t.duration ? formatMusicSec(t.duration) : '';
+          return `<div class="cpQueueItem" data-track-index="${i + 1}">
+            <span class="qNum">${numStr}</span>
+            <div class="qTrackMeta">
+              <span class="qTitle">${escapeHtml(t.title)}</span>
+              ${t.artist ? `<span class="qArtist">${escapeHtml(t.artist)}</span>` : ''}
+            </div>
+            <span class="qDur">${durStr}</span>
+          </div>`;
+        }).join('');
+
+        queueList.querySelectorAll('.cpQueueItem').forEach(item => {
+          item.addEventListener('click', (e) => {
+            if (gestureMoved) {
+              e.stopPropagation();
+              e.preventDefault();
+              return;
+            }
+            const idx = parseInt(item.getAttribute('data-track-index'), 10);
+            if (Number.isFinite(idx)) {
+              sendCommand({ action: 'music_jump', index: idx });
+            }
+          });
+        });
+        lastActiveTrackIdx = -1;
+        lastPlayingState = null;
+      }
+
+      const activeIdx = music.index ? music.index : 1;
+      if (activeIdx !== lastActiveTrackIdx || playing !== lastPlayingState) {
+        lastActiveTrackIdx = activeIdx;
+        lastPlayingState = playing;
+        const items = queueList.querySelectorAll('.cpQueueItem');
+        items.forEach((item, i) => {
+          const isCur = (i + 1 === activeIdx);
+          const isCurPlaying = isCur && playing;
+          item.classList.toggle('active', isCur);
+          item.classList.toggle('is-playing', isCurPlaying);
+          const qNum = item.querySelector('.qNum');
+          if (qNum) {
+            const numStr = (i + 1) < 10 ? `0${i + 1}` : `${i + 1}`;
+            qNum.innerHTML = isCurPlaying ? '<span class="qEqBars"><i></i><i></i><i></i></span>' : numStr;
+          }
+          if (isCur && carplayActiveApp === 'music') {
+            item.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+          }
+        });
+      }
+    } else {
+      renderedTracksCacheKey = '';
+      lastActiveTrackIdx = -1;
+      lastPlayingState = null;
+      queueList.innerHTML = `<div class="cpQueueEmpty">No tracks found in in-game music folder</div>`;
+    }
+  }
+}
+
+function initMusicScrubber() {
+  const bar = document.getElementById('cpMusicScrubBar');
+  const track = document.getElementById('cpScrubTrack');
+  const fill = document.getElementById('fullMusicProgressBar');
+  const thumb = document.getElementById('fullMusicProgressThumb');
+  const elapsedEl = document.getElementById('fullMusicElapsed');
+  const durEl = document.getElementById('fullMusicDuration');
+  if (!bar || !track) return;
+
+  function getTrackRatio(clientX) {
+    const rect = track.getBoundingClientRect();
+    if (!rect.width) return 0;
+    const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+    return x / rect.width;
+  }
+
+  function applyScrub(ratio) {
+    const pct = Math.min(100, Math.max(0, Math.round(ratio * 100)));
+    if (fill) fill.style.width = `${pct}%`;
+    if (thumb) thumb.style.left = `${pct}%`;
+    const curDur = (lastMusicState && lastMusicState.durationSec) || 0;
+    if (curDur > 0) {
+      const curElapsed = Math.round(curDur * ratio);
+      if (elapsedEl) elapsedEl.textContent = formatMusicSec(curElapsed);
+      if (durEl && showRemainingTime) {
+        const rem = Math.max(0, curDur - curElapsed);
+        durEl.textContent = `-${formatMusicSec(rem)}`;
+      }
+    }
+  }
+
+  bar.addEventListener('pointerdown', (e) => {
+    if (e.button !== undefined && e.button !== 0) return;
+    isMusicScrubbing = true;
+    bar.classList.add('scrubbing');
+    try { bar.setPointerCapture(e.pointerId); } catch (err) {}
+    applyScrub(getTrackRatio(e.clientX));
+  });
+
+  bar.addEventListener('pointermove', (e) => {
+    if (!isMusicScrubbing) return;
+    applyScrub(getTrackRatio(e.clientX));
+  });
+
+  const stopScrubbing = (e) => {
+    if (!isMusicScrubbing) return;
+    isMusicScrubbing = false;
+    bar.classList.remove('scrubbing');
+    try { bar.releasePointerCapture(e.pointerId); } catch (err) {}
+    if (lastMusicState) {
+      updateMusicPlayer(lastMusicState);
+    }
+  };
+
+  bar.addEventListener('pointerup', stopScrubbing);
+  bar.addEventListener('pointercancel', stopScrubbing);
+
+  if (durEl) {
+    durEl.style.cursor = 'pointer';
+    durEl.title = 'Toggle remaining time';
+    durEl.addEventListener('click', (e) => {
+      e.stopPropagation();
+      showRemainingTime = !showRemainingTime;
+      if (lastMusicState) updateMusicPlayer(lastMusicState);
+    });
+  }
+}
+
 function updateHud(data) {
   lastData = data;
   updateCommandButtonStates(data);
+  updateMusicPlayer(data.music);
 
   // El mini-HUD (top-right del mapa, visible solo con el panel oculto)
   // duplica velocidad/limite/crucero, asi que se actualizan en pares.
@@ -5652,6 +6062,18 @@ function updateHud(data) {
   const speedText = data.speedKmh != null ? Math.round(speedDisplay) : '--';
   document.getElementById('speedBig').textContent = speedText;
   document.getElementById('miniSpeedBig').textContent = speedText;
+
+  const gearBadge = document.getElementById('speedGearBadge');
+  if (gearBadge) {
+    const g = data.gear;
+    gearBadge.textContent = g == null ? 'N' : g === 0 ? 'N' : g < 0 ? `R${-g > 1 ? -g : ''}` : `D${g}`;
+  }
+  const rpmFill = document.getElementById('speedRpmFill');
+  if (rpmFill) {
+    const rpmMax = data.engineRpmMax || 2500;
+    const rpmPct = data.engineRpm != null ? Math.min(100, Math.max(0, Math.round((data.engineRpm / rpmMax) * 100))) : 0;
+    rpmFill.style.width = `${rpmPct}%`;
+  }
 
   const limit = data.speedLimitKmh;
   for (const id of ['limitSign', 'miniLimitSign']) {
@@ -5708,11 +6130,108 @@ function updateHud(data) {
   }
 
   updateGameClock(data.gameTimeMinutes);
+
+  // Sync to CarPlay Gauges App
+  const fullSpeed = document.getElementById('fullSpeedBig');
+  if (fullSpeed) fullSpeed.textContent = speedText;
+  const fullUnit = document.getElementById('fullSpeedUnit');
+  if (fullUnit) fullUnit.textContent = useImperial ? 'mph' : 'km/h';
+  const fullGear = document.getElementById('fullGaugeGear');
+  if (fullGear) {
+    const g = data.gear;
+    fullGear.textContent = g == null ? 'N' : g === 0 ? 'N' : g < 0 ? `R${-g > 1 ? -g : ''}` : `D${g}`;
+  }
+  const fullLimit = document.getElementById('fullLimitSign');
+  if (fullLimit) {
+    if (limit && limit > 0) {
+      fullLimit.textContent = Math.round(useImperial ? limit * KM_TO_MI : limit);
+      fullLimit.style.display = '';
+    } else {
+      fullLimit.style.display = 'none';
+    }
+  }
+  const fullRpm = document.getElementById('fullRpmFill');
+  if (fullRpm) {
+    const rpmMax = data.engineRpmMax || 2500;
+    const rpmPct = data.engineRpm != null ? Math.min(100, Math.max(0, Math.round((data.engineRpm / rpmMax) * 100))) : 0;
+    fullRpm.style.width = `${rpmPct}%`;
+  }
+  const fullFuelRange = document.getElementById('fullFuelRange');
+  if (fullFuelRange) fullFuelRange.textContent = document.getElementById('fuelRangeLine')?.textContent || '--';
+  const fullFuelPct = document.getElementById('fullFuelPct');
+  if (fullFuelPct) fullFuelPct.textContent = document.getElementById('fuelPctLine')?.textContent || '--';
+  const fullFuelAvg = document.getElementById('fullFuelAvg');
+  if (fullFuelAvg) fullFuelAvg.textContent = document.getElementById('fuelAvgLine')?.textContent || '--';
+  const fullCruise = document.getElementById('fullCruiseSpeed');
+  if (fullCruise) {
+    fullCruise.textContent = data.cruiseControl ? `${Math.round(useImperial ? data.cruiseControlSpeedKmh * KM_TO_MI : data.cruiseControlSpeedKmh)} ${useImperial ? 'mph' : 'km/h'}` : 'OFF';
+  }
+  const fullRetarder = document.getElementById('fullRetarderLevel');
+  if (fullRetarder) {
+    fullRetarder.textContent = `${data.retarder || 0} / 4`;
+  }
+  const fullTruckWear = document.getElementById('fullTruckWear');
+  if (fullTruckWear) fullTruckWear.textContent = document.getElementById('wearLine')?.textContent || '0%';
+  const fullTrailerWear = document.getElementById('fullTrailerWear');
+  if (fullTrailerWear) fullTrailerWear.textContent = data.trailerWear != null ? `${Math.round(data.trailerWear * 100)}%` : '0%';
+  const fullAir = document.getElementById('fullAirPressure');
+  if (fullAir) fullAir.textContent = data.brakeAirPressure != null ? `${formatDec(data.brakeAirPressure, currentLang)} bar` : '--';
+  const fullOil = document.getElementById('fullOilTemp');
+  if (fullOil) fullOil.textContent = data.oilTemperature != null ? `${Math.round(data.oilTemperature)} °C` : '--';
+  const fullOdo = document.getElementById('fullOdometer');
+  if (fullOdo) fullOdo.textContent = document.getElementById('odometer')?.textContent || '--';
+
   const realEtaSeconds = computeRealEtaSeconds(data);
   routeSummaryEtaSeconds = realEtaSeconds;
   // Despues del ETA real: la fila "via waypoint" sale de el (waypointEta).
   updateWaypointRoute(data);
   document.getElementById('etaReal').textContent = realEtaSeconds != null ? formatSeconds(realEtaSeconds) : t('calculating');
+
+  // Sync to CarPlay Cargo & Trip App
+  const fullCargo = document.getElementById('fullCargoName');
+  if (fullCargo) {
+    fullCargo.textContent = viaje.cargo || (data.routeDistanceKm ? 'Custom Route' : 'No active delivery');
+  }
+  const fullWeight = document.getElementById('fullCargoWeight');
+  if (fullWeight) {
+    fullWeight.textContent = viaje.cargoMassKg ? formatCargoMass(viaje.cargoMassKg, currentLang, useImperial) : (viaje.cargo ? '' : 'Bobtail / Empty');
+  }
+  const fullSrc = document.getElementById('fullCitySrc');
+  if (fullSrc) {
+    const srcParts = [data.companySrc, viaje.citySrc].filter(Boolean).join(' · ');
+    fullSrc.textContent = srcParts || 'Current Location';
+  }
+  const fullDst = document.getElementById('fullCityDst');
+  if (fullDst) {
+    const dstParts = [data.companyDst, viaje.cityDst].filter(Boolean).join(' · ');
+    fullDst.textContent = dstParts || (data.routeDistanceKm ? 'Custom Destination' : '—');
+  }
+  const fullIncome = document.getElementById('fullJobIncome');
+  if (fullIncome) {
+    fullIncome.textContent = viaje.income ? formatMoney(viaje.income, gameCurrency(data.game)) : (data.onJob ? '--' : 'None (Free Roam)');
+  }
+  const fullDeadline = document.getElementById('fullJobDeadline');
+  if (fullDeadline) {
+    fullDeadline.textContent = (viaje.deadlineSeconds != null) ? formatSeconds(Math.max(0, viaje.deadlineSeconds)) : (data.onJob ? '--' : 'None');
+  }
+  const fullTripDist = document.getElementById('fullTripDist');
+  if (fullTripDist) fullTripDist.textContent = data.routeDistanceKm ? `${Math.round(useImperial ? data.routeDistanceKm * KM_TO_MI : data.routeDistanceKm)} ${useImperial ? 'mi' : 'km'}` : '--';
+  const fullTripTime = document.getElementById('fullTripTime');
+  if (fullTripTime) {
+    fullTripTime.textContent = (realEtaSeconds != null && realEtaSeconds > 0)
+      ? formatSeconds(realEtaSeconds)
+      : (etaText && etaText !== '-' ? etaText : '--');
+  }
+
+  // Sync Telemetry Connection Indicator in Dock & Settings
+  const dockDot = document.getElementById('dockStatusDot');
+  if (dockDot) {
+    dockDot.className = 'dockStatusDot connected';
+  }
+  const cpStatus = document.getElementById('cpSettingsStatusBadge');
+  if (cpStatus) {
+    cpStatus.textContent = 'Connected (ETS2 Live)';
+  }
 
   // Proximo descanso obligatorio, con la fatiga (ver restInfo).
   const rest = restInfo(data);
@@ -6094,32 +6613,101 @@ document.getElementById('panelSwipe').addEventListener('scroll', () => {
   document.getElementById('swipeHint').style.display = 'none';
 }, { once: true });
 
+function isNativeFullscreen() {
+  return !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+}
+
+function isCurrentlyFullscreen() {
+  return isNativeFullscreen() || document.body.classList.contains('fsMode');
+}
+
 function toggleFsMode() {
-  document.body.classList.toggle('fsMode');
-  // La Fullscreen API real (esconde tambien la barra de URL en el celular)
-  // es un extra sobre ocultar el header - si el navegador no la deja usar
-  // (algunos webviews la bloquean) el modo fsMode sigue funcionando igual.
-  if (document.body.classList.contains('fsMode')) {
-    document.documentElement.requestFullscreen?.().catch(() => {});
-  } else if (document.fullscreenElement) {
-    document.exitFullscreen?.().catch(() => {});
+  const docEl = document.documentElement;
+  const inNative = isNativeFullscreen();
+  const inCss = document.body.classList.contains('fsMode');
+  const inFs = inNative || inCss;
+  const reqFs = docEl.requestFullscreen || docEl.webkitRequestFullscreen || docEl.mozRequestFullScreen || docEl.msRequestFullscreen;
+  const exitFs = document.exitFullscreen || document.webkitExitFullscreen || document.mozCancelFullScreen || document.msExitFullscreen;
+
+  if (!inFs) {
+    if (reqFs) {
+      try {
+        const p = reqFs.call(docEl);
+        if (p && p.catch) p.catch(() => {});
+      } catch (e) {}
+    }
+    document.body.classList.add('fsMode', 'carplayFs');
+    try { window.scrollTo(0, 1); } catch (e) {}
+  } else {
+    if (inNative && exitFs) {
+      try {
+        const p = exitFs.call(document);
+        if (p && p.catch) p.catch(() => {});
+      } catch (e) {}
+    }
+    document.body.classList.remove('fsMode', 'carplayFs');
   }
+
   renderLayoutFsBtn();
-  setTimeout(() => { if (map) map.resize(); }, 300);
+  if (map) {
+    map.resize();
+    setTimeout(() => { if (map) map.resize(); }, 120);
+    setTimeout(() => { if (map) map.resize(); }, 350);
+  }
 }
-// Tambien desde la barra de acomodar: ahi los botones del mapa no responden
-// (un toque los mueve), y en el telefono se acomoda mejor en pantalla
-// completa, que es como se maneja.
+
 function renderLayoutFsBtn() {
+  const isFs = isCurrentlyFullscreen();
   const btn = document.getElementById('layoutFsBtn');
-  if (btn) btn.classList.toggle('active', document.body.classList.contains('fsMode'));
+  if (btn) btn.classList.toggle('active', isFs);
+  const dockFs = document.getElementById('dockFsBtn');
+  if (dockFs) dockFs.classList.toggle('active', isFs);
+  const exitPill = document.getElementById('floatingFsExitBtn');
+  if (exitPill) exitPill.hidden = !isFs;
 }
-document.getElementById('fullscreenBtn').addEventListener('click', toggleFsMode);
-document.getElementById('layoutFsBtn').addEventListener('click', toggleFsMode);
+
+['fullscreenchange', 'webkitfullscreenchange', 'mozfullscreenchange', 'MSFullscreenChange'].forEach(ev => {
+  document.addEventListener(ev, () => {
+    const fs = isNativeFullscreen();
+    document.body.classList.toggle('fsMode', fs);
+    document.body.classList.toggle('carplayFs', fs);
+    renderLayoutFsBtn();
+    if (map) {
+      map.resize();
+      setTimeout(() => { if (map) map.resize(); }, 120);
+    }
+  });
+});
+
+document.getElementById('fullscreenBtn')?.addEventListener('click', toggleFsMode);
+document.getElementById('layoutFsBtn')?.addEventListener('click', toggleFsMode);
+document.getElementById('dockFsBtn')?.addEventListener('click', toggleFsMode);
+document.getElementById('floatingFsExitBtn')?.addEventListener('click', toggleFsMode);
+const pwaClose = document.getElementById('iosPwaHintClose');
+if (pwaClose) {
+  pwaClose.addEventListener('click', () => {
+    sessionStorage.setItem('ios_pwa_hint_seen', '1');
+    document.getElementById('iosPwaHint').hidden = true;
+  });
+}
 
 document.addEventListener('fullscreenchange', () => {
-  if (!document.fullscreenElement) document.body.classList.remove('fsMode');
+  const fsElem = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+  if (!fsElem) {
+    document.body.classList.remove('fsMode');
+    document.body.classList.remove('carplayFs');
+  }
   renderLayoutFsBtn();
+  if (map) setTimeout(() => map.resize(), 150);
+});
+document.addEventListener('webkitfullscreenchange', () => {
+  const fsElem = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement;
+  if (!fsElem) {
+    document.body.classList.remove('fsMode');
+    document.body.classList.remove('carplayFs');
+  }
+  renderLayoutFsBtn();
+  if (map) setTimeout(() => map.resize(), 150);
 });
 
 document.getElementById('navToggleBtn').addEventListener('click', () => {
@@ -6216,7 +6804,8 @@ function connectionView() {
 // en modo LAN (http, sin Wake Lock API) va el video de respaldo, que un
 // toque reintenta si no arranco solo (createScreenKeeper, pure.js).
 const screenKeeper = createScreenKeeper({ wakeLock: navigator.wakeLock, doc: document });
-document.addEventListener('pointerup', screenKeeper.sync, true);
+document.addEventListener('touchend', screenKeeper.sync, true);
+document.addEventListener('click', screenKeeper.sync, true);
 document.addEventListener('keydown', screenKeeper.sync, true);
 document.addEventListener('visibilitychange', () => {
   screenKeeper.sync();
@@ -6265,6 +6854,15 @@ function renderConnectionUi() {
     empty.style.display = 'none';
     statusEl.textContent = t('notConnected');
     statusEl.className = '';
+    const cpBadge = document.getElementById('cpSettingsStatusBadge');
+    if (cpBadge) {
+      cpBadge.textContent = 'Disconnected';
+      cpBadge.className = 'cpBadge disconnected';
+    }
+    const dockDot = document.getElementById('dockStatusDot');
+    if (dockDot) {
+      dockDot.classList.remove('connected', 'searching');
+    }
     return;
   }
   group.style.display = 'none';
@@ -6275,6 +6873,22 @@ function renderConnectionUi() {
   if (conn.local) chipText += ' · LAN';
   if (conn.spectator) chipText += ` · ${document.getElementById('spectatorCode').textContent}`;
   document.getElementById('statusChipText').textContent = chipText;
+
+  const cpBadge = document.getElementById('cpSettingsStatusBadge');
+  if (cpBadge) {
+    if (view.live) {
+      cpBadge.textContent = 'Connected · Live';
+      cpBadge.className = 'cpBadge live';
+    } else {
+      cpBadge.textContent = view.chip ? t(view.chip) : 'Connected';
+      cpBadge.className = 'cpBadge connected';
+    }
+  }
+  const dockDot = document.getElementById('dockStatusDot');
+  if (dockDot) {
+    dockDot.classList.toggle('connected', !!view.live);
+    dockDot.classList.toggle('searching', !view.live);
+  }
   // En modo LAN o demo no hay "otro codigo" que poner: el lapiz sale de la sesion.
   document.getElementById('changeCodeBtn').title = conn.demo ? t('exitDemo') : t('changeCode');
   document.getElementById('changeCodeBtn').style.display = conn.local ? 'none' : '';
@@ -6431,6 +7045,365 @@ function sendCommand(payload) {
 document.querySelectorAll('#commandsPanel .cmdBtn[data-action]').forEach(btn => {
   btn.addEventListener('click', () => sendCommand({ action: btn.dataset.action }));
 });
+document.querySelectorAll('[data-music-action]').forEach(btn => {
+  btn.addEventListener('click', () => sendCommand({ action: btn.dataset.musicAction }));
+});
+
+// ============================================================================
+// APPLE CARPLAY OPERATING SYSTEM NAVIGATION & APP CONTROLLER
+// ============================================================================
+let carplayActiveApp = 'dashboard';
+
+function switchCarPlayApp(appName) {
+  carplayActiveApp = appName;
+  const shell = document.getElementById('carplayShell');
+  if (shell) {
+    shell.className = `carplayShell view-${appName}`;
+    shell.setAttribute('data-active-app', appName);
+  }
+
+  // Update Dock squircle active states
+  const appBtnMap = {
+    'dashboard': 'dockSplitBtn',
+    'maps': 'dockMapBtn',
+    'music': 'dockMusicBtn',
+    'gauges': 'dockGaugesBtn'
+  };
+  ['dockSplitBtn', 'dockMapBtn', 'dockMusicBtn', 'dockGaugesBtn'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.classList.remove('active');
+  });
+  const homeBtn = document.getElementById('dockHomeBtn');
+  if (homeBtn) homeBtn.classList.toggle('active', appName === 'home');
+  if (appBtnMap[appName]) {
+    const activeBtn = document.getElementById(appBtnMap[appName]);
+    if (activeBtn) activeBtn.classList.add('active');
+  }
+
+  // Update app views visibility
+  document.querySelectorAll('.cpAppView').forEach(view => {
+    view.classList.remove('active');
+  });
+  const targetView = document.getElementById(
+    appName === 'dashboard' ? 'cpAppDashboard' :
+    appName === 'home' ? 'cpAppHome' :
+    appName === 'music' ? 'cpAppMusic' :
+    appName === 'gauges' ? 'cpAppGauges' :
+    appName === 'controls' ? 'cpAppControls' :
+    appName === 'trip' ? 'cpAppTrip' :
+    appName === 'settings' ? 'cpAppSettings' : 'cpAppDashboard'
+  );
+  if (targetView) targetView.classList.add('active');
+
+  if (appName === 'home') {
+    const track = document.getElementById('cpHomePagesTrack');
+    if (track) {
+      const activeDot = document.querySelector('.cpHomeDots span.active');
+      const activePage = activeDot ? parseInt(activeDot.dataset.page || '0', 10) : 0;
+      setTimeout(() => {
+        track.scrollLeft = activePage * Math.max(1, track.clientWidth);
+      }, 50);
+    }
+  }
+
+  // Trigger smooth MapLibre resize without reloading or re-centering
+  if (map) {
+    try {
+      map.resize();
+      setTimeout(() => { if (map) map.resize(); }, 60);
+      setTimeout(() => { if (map) map.resize(); }, 180);
+      setTimeout(() => { if (map) map.resize(); }, 350);
+    } catch (e) {}
+  }
+}
+
+function syncCabinDock() {
+  // Compatibility stub for any callers
+}
+
+(function initCarPlayOS() {
+  // Mobile device detection and fullscreen hiding
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 1 && (window.innerWidth <= 1024 || window.innerHeight <= 520));
+  if (isMobile) {
+    document.body.classList.add('is-mobile-device');
+    const fsEls = document.querySelectorAll('#dockFsBtn, #homeFsTile, #layoutFsBtn, #cpFsSettingRow, .floatingFsExitBtn, #fullscreenBtn, #oldDockFsBtn');
+    fsEls.forEach(el => { el.style.display = 'none'; });
+  }
+
+  // Universal Touch & Drag Gesture Disambiguator
+  // Allows user to touch ANY object (button, card, song, tile) to drag/scroll,
+  // while suppressing accidental clicks on touch release.
+  let gestureStartX = 0;
+  let gestureStartY = 0;
+  let isGestureTracking = false;
+
+  window.addEventListener('pointerdown', (e) => {
+    gestureStartX = e.clientX;
+    gestureStartY = e.clientY;
+    isGestureTracking = true;
+    gestureMoved = false;
+  }, { capture: true, passive: true });
+
+  window.addEventListener('pointermove', (e) => {
+    if (!isGestureTracking) return;
+    const dx = e.clientX - gestureStartX;
+    const dy = e.clientY - gestureStartY;
+    if (Math.hypot(dx, dy) > 8) {
+      gestureMoved = true;
+    }
+  }, { capture: true, passive: true });
+
+  const endGesture = () => {
+    isGestureTracking = false;
+    if (gestureMoved) {
+      setTimeout(() => { gestureMoved = false; }, 280);
+    }
+  };
+  window.addEventListener('pointerup', endGesture, { capture: true, passive: true });
+  window.addEventListener('pointercancel', endGesture, { capture: true, passive: true });
+
+  // Suppress clicks on any button or tile if the finger/mouse moved (was a scroll)
+  document.addEventListener('click', (e) => {
+    if (gestureMoved) {
+      e.stopPropagation();
+      e.preventDefault();
+    }
+  }, true);
+
+  // Initialize interactive music scrubber
+  initMusicScrubber();
+
+  // Dock status cluster opens Settings
+  const dockCluster = document.querySelector('.dockStatusCluster');
+  if (dockCluster) {
+    dockCluster.style.cursor = 'pointer';
+    dockCluster.title = 'Car Display Telemetry & Settings';
+    dockCluster.addEventListener('click', () => switchCarPlayApp('settings'));
+  }
+
+  const homeBtn = document.getElementById('dockHomeBtn');
+  if (homeBtn) {
+    homeBtn.addEventListener('click', () => {
+      if (carplayActiveApp === 'home') {
+        switchCarPlayApp('dashboard');
+      } else {
+        switchCarPlayApp('home');
+      }
+    });
+  }
+
+  document.getElementById('dockSplitBtn')?.addEventListener('click', () => switchCarPlayApp('dashboard'));
+  document.getElementById('dockMapBtn')?.addEventListener('click', () => switchCarPlayApp('maps'));
+  document.getElementById('dockMusicBtn')?.addEventListener('click', () => switchCarPlayApp('music'));
+  document.getElementById('dockGaugesBtn')?.addEventListener('click', () => switchCarPlayApp('gauges'));
+  document.getElementById('musicCardOpenFull')?.addEventListener('click', () => switchCarPlayApp('music'));
+  document.getElementById('carplayTurnCard')?.addEventListener('click', () => switchCarPlayApp('maps'));
+
+  // Wire CarPlay Vehicle tactile switches & App Tiles with data-action
+  document.querySelectorAll('.cpSwitchBtn[data-action], .cpAppTile[data-action]').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      if (gestureMoved) {
+        e.stopPropagation();
+        e.preventDefault();
+        return;
+      }
+      sendCommand({ action: btn.dataset.action });
+    });
+  });
+
+  // App Launcher grid tiles
+  document.querySelectorAll('.cpAppTile[data-app]').forEach(tile => {
+    tile.addEventListener('click', (e) => {
+      if (gestureMoved) {
+        e.stopPropagation();
+        e.preventDefault();
+        return;
+      }
+      const target = tile.getAttribute('data-app');
+      if (target) switchCarPlayApp(target);
+    });
+  });
+
+  document.getElementById('homePoiTile')?.addEventListener('click', (e) => {
+    if (gestureMoved) return;
+    const poi = document.getElementById('poiModal');
+    if (poi) poi.style.display = 'flex';
+  });
+
+  document.getElementById('homeWaypointTile')?.addEventListener('click', (e) => {
+    if (gestureMoved) return;
+    switchCarPlayApp('maps');
+    document.getElementById('waypointBtn')?.click();
+  });
+
+  document.getElementById('homeConvoyTile')?.addEventListener('click', (e) => {
+    if (gestureMoved) return;
+    if (typeof convoyOpenModal === 'function') {
+      convoyOpenModal();
+    } else {
+      document.getElementById('convoyBtn')?.click();
+    }
+  });
+
+  document.getElementById('homeFsTile')?.addEventListener('click', (e) => {
+    if (gestureMoved) return;
+    toggleFsMode();
+  });
+
+  document.getElementById('homeRecenterTile')?.addEventListener('click', (e) => {
+    if (gestureMoved) return;
+    navAutoZoomPaused = false;
+    resumeMapFollow();
+    switchCarPlayApp('maps');
+  });
+
+  // Home Screen Swiping & Dot Pagination
+  const homeTrack = document.getElementById('cpHomePagesTrack');
+  const homeDots = document.querySelectorAll('.cpHomeDots span');
+  if (homeTrack) {
+    let isDragging = false;
+    let dragStartX = 0;
+    let dragScrollLeft = 0;
+    let didDragMove = false;
+
+    const updateHomeDots = () => {
+      const pageW = Math.max(1, homeTrack.clientWidth);
+      const pageIdx = Math.round(homeTrack.scrollLeft / pageW);
+      homeDots.forEach((dot, idx) => {
+        dot.classList.toggle('active', idx === pageIdx);
+      });
+    };
+
+    homeTrack.addEventListener('scroll', updateHomeDots, { passive: true });
+
+    homeDots.forEach((dot, idx) => {
+      dot.addEventListener('click', () => {
+        const pageW = Math.max(1, homeTrack.clientWidth);
+        homeTrack.scrollTo({ left: idx * pageW, behavior: 'smooth' });
+      });
+    });
+
+    // Touch support on Home Track (swiping directly on tiles or gap)
+    let touchStartX = 0;
+    let touchStartY = 0;
+    let isHomeTouching = false;
+
+    homeTrack.addEventListener('touchstart', (e) => {
+      if (e.touches.length > 1) return;
+      isHomeTouching = true;
+      touchStartX = e.touches[0].pageX;
+      touchStartY = e.touches[0].pageY;
+      didDragMove = false;
+    }, { passive: true });
+
+    homeTrack.addEventListener('touchmove', (e) => {
+      if (!isHomeTouching || e.touches.length > 1) return;
+      const dx = e.touches[0].pageX - touchStartX;
+      const dy = e.touches[0].pageY - touchStartY;
+      if (Math.abs(dx) > 6 || Math.abs(dy) > 6) {
+        didDragMove = true;
+        gestureMoved = true;
+      }
+    }, { passive: true });
+
+    const endHomeTouch = () => {
+      isHomeTouching = false;
+      if (didDragMove) {
+        setTimeout(() => { didDragMove = false; }, 280);
+      }
+    };
+    homeTrack.addEventListener('touchend', endHomeTouch, { passive: true });
+    homeTrack.addEventListener('touchcancel', endHomeTouch, { passive: true });
+
+    // Mouse / Desktop pointer drag support
+    homeTrack.addEventListener('mousedown', (e) => {
+      if (e.button !== 0) return;
+      isDragging = true;
+      dragStartX = e.pageX;
+      dragScrollLeft = homeTrack.scrollLeft;
+      didDragMove = false;
+    });
+
+    window.addEventListener('mousemove', (e) => {
+      if (!isDragging) return;
+      const dx = e.pageX - dragStartX;
+      if (Math.abs(dx) > 6) {
+        didDragMove = true;
+        gestureMoved = true;
+      }
+      homeTrack.scrollLeft = dragScrollLeft - dx;
+    });
+
+    window.addEventListener('mouseup', (e) => {
+      if (!isDragging) return;
+      isDragging = false;
+      if (didDragMove) {
+        const pageW = Math.max(1, homeTrack.clientWidth);
+        const totalDx = e.pageX - dragStartX;
+        const threshold = pageW * 0.12;
+        let targetPage = Math.round(homeTrack.scrollLeft / pageW);
+        if (totalDx < -threshold) {
+          targetPage = Math.ceil(homeTrack.scrollLeft / pageW);
+        } else if (totalDx > threshold) {
+          targetPage = Math.floor(homeTrack.scrollLeft / pageW);
+        }
+        targetPage = Math.max(0, Math.min(homeDots.length - 1, targetPage));
+        homeTrack.scrollTo({ left: targetPage * pageW, behavior: 'smooth' });
+        setTimeout(() => { didDragMove = false; }, 280);
+      }
+    });
+
+    // Suppress click on child tile when dragged
+    homeTrack.addEventListener('click', (e) => {
+      if (didDragMove || gestureMoved) {
+        e.stopPropagation();
+        e.preventDefault();
+        didDragMove = false;
+      }
+    }, true);
+
+    window.addEventListener('resize', () => {
+      const activeDot = document.querySelector('.cpHomeDots span.active');
+      const activePage = activeDot ? parseInt(activeDot.dataset.page || '0', 10) : 0;
+      homeTrack.scrollLeft = activePage * Math.max(1, homeTrack.clientWidth);
+    });
+  }
+
+  // Settings App controls
+  const cpInput = document.getElementById('cpCodeInput');
+  if (cpInput) {
+    cpInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        document.getElementById('cpConnectBtn')?.click();
+      }
+    });
+  }
+
+  document.getElementById('cpConnectBtn')?.addEventListener('click', () => {
+    const input = document.getElementById('cpCodeInput');
+    if (input && input.value.trim()) {
+      const codeField = document.getElementById('code');
+      if (codeField) codeField.value = input.value.trim().toUpperCase();
+      document.getElementById('connectBtn')?.click();
+    }
+  });
+
+  document.getElementById('cpToggleFsBtn')?.addEventListener('click', toggleFsMode);
+  document.getElementById('cpUnitToggle')?.addEventListener('click', () => {
+    document.getElementById('unitToggle')?.click();
+  });
+  document.getElementById('cpVoiceSelect')?.addEventListener('change', (e) => {
+    const sel = document.getElementById('setVoice');
+    if (sel) {
+      sel.value = e.target.value;
+      sel.dispatchEvent(new Event('change'));
+    }
+  });
+
+  // Initialize clock immediately
+  updateGameClock(null);
+})();
 
 // ---------------------------------------------------------------- botones custom
 // Nombre de tecla (formato pydirectinput del cliente) a partir de un keydown:
@@ -6550,6 +7523,15 @@ function requestKeybinds() {
   ws.send(JSON.stringify({ type: 'get_keybinds' }));
 }
 
+const MUSIC_KEYBIND_ITEMS = [
+  ['music_play_pause', 'Music Play / Pause'],
+  ['music_next', 'Music Next Track'],
+  ['music_prev', 'Music Previous Track'],
+  ['music_vol_up', 'Music Volume +'],
+  ['music_vol_down', 'Music Volume −'],
+  ['toggle_radio_window', 'Radio / Music Window'],
+];
+
 function openKeybindsModal() {
   if (!ws || ws.readyState !== WebSocket.OPEN) {
     showToast(t('commandNotConnectedToast'), 'danger');
@@ -6563,6 +7545,12 @@ function openKeybindsModal() {
     const row = document.createElement('div');
     row.className = 'keybindRow';
     row.innerHTML = `<span>${label}</span><input type="text" maxlength="16" data-action="${action}" placeholder="${t('keybindsUnassigned')}">`;
+    list.appendChild(row);
+  });
+  MUSIC_KEYBIND_ITEMS.forEach(([action, label]) => {
+    const row = document.createElement('div');
+    row.className = 'keybindRow';
+    row.innerHTML = `<span>🎵 ${label}</span><input type="text" maxlength="16" data-action="${action}" placeholder="${t('keybindsUnassigned')}">`;
     list.appendChild(row);
   });
   keybindsModalOpen = true;
@@ -6620,19 +7608,22 @@ function handleCommandResult(data) {
 // Resalta los botones cuyo estado (segun la telemetria real) esta activo -
 // no es un estado local del boton, siempre refleja lo que dice el juego.
 function updateCommandButtonStates(data) {
-  document.getElementById('cmdHazards').classList.toggle('active', !!data.lights?.hazards);
-  document.getElementById('cmdBeacon').classList.toggle('active', !!data.lights?.beacon);
-  document.getElementById('cmdHandbrake').classList.toggle('active', !!data.parkingBrake);
-  document.getElementById('cmdEngine').classList.toggle('active', !!data.engineEnabled);
-  document.getElementById('cmdLiftAxle').classList.toggle('active', !!data.liftAxle);
-  document.getElementById('cmdWipers').classList.toggle('active', !!data.wipers);
-  document.getElementById('cmdTrailer').classList.toggle('active', !!data.trailerAttached);
-  document.getElementById('cmdCruise').classList.toggle('active', !!data.cruiseControl);
-  // "Lights" no es un simple on/off (la tecla real rota entre apagado/
-  // parking/bajas), asi que se resalta cuando hay CUALQUIER luz delantera
-  // encendida, no un estado exacto que matchee el ciclo.
-  document.getElementById('cmdLights').classList.toggle('active', !!(data.lights?.beamLow || data.lights?.beamHigh));
-  document.getElementById('cmdHighBeam').classList.toggle('active', !!data.lights?.beamHigh);
+  const setActive = (action, val) => {
+    document.querySelectorAll(`[data-action="${action}"]`).forEach(btn => {
+      btn.classList.toggle('active', !!val);
+    });
+  };
+  setActive('toggle_hazards', data.lights?.hazards);
+  setActive('toggle_beacon', data.lights?.beacon);
+  setActive('toggle_parking_brake', data.parkingBrake);
+  setActive('toggle_engine', data.engineEnabled);
+  setActive('toggle_lift_axle', data.liftAxle);
+  setActive('toggle_wipers', data.wipers);
+  setActive('toggle_trailer', data.trailerAttached);
+  setActive('toggle_cruise_control', data.cruiseControl);
+  setActive('cycle_lights', data.lights?.beamLow || data.lights?.beamHigh);
+  setActive('toggle_high_beam', data.lights?.beamHigh);
+  setActive('toggle_differential_lock', data.differentialLock);
 }
 
 // Conecta (o reconecta) el websocket del viewer. Se llama tanto al apretar
@@ -7180,7 +8171,7 @@ initCab();
     return;
   }
   if (convoyParam) setTimeout(() => convoyOpenModal(convoyParam), 800);
-  if (params.get('local')) {
+  if (params.get('local') || (!code && location.port === '27765')) {
     // Servido por el cliente en la LAN: el WebSocket esta en el mismo host,
     // puerto fijo (ver client/local_server.py).
     connectWs(`ws://${location.hostname}:27766`, null, { local: true });
@@ -7188,6 +8179,8 @@ initCab();
   }
   if (code) {
     document.getElementById('code').value = code.toUpperCase();
+    const cpIn = document.getElementById('cpCodeInput');
+    if (cpIn) cpIn.value = code.toUpperCase();
     codeFromLink = true;   // ver connectWs: se espera al cliente en vez de "codigo invalido"
     document.getElementById('connectBtn').click();
   }

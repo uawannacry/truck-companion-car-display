@@ -16,13 +16,17 @@ use it, checks it against the release's `SHA256SUMS.txt`, and keeps it in
 **GPL-3.0-or-later** (see [LICENSE](LICENSE)). The builder is
 [truckermudgeon/maps](https://github.com/truckermudgeon/maps), which is GPL,
 with [truckdash.patch](truckdash.patch) applied on top. The rest of Truck
-Dash (client, relay, web) stays under the MIT license of the repository: the
-client only downloads and runs the builder as a separate program.
+Dash (client, relay, web) is under the AGPL-3.0 license of the repository
+(MIT up to commit `a990dcd`): the client only downloads and runs the builder
+as a separate program.
 
 ## What the patch changes
 
-- Mods can be read as they come (a folder, a HashFS `.scs` or a ZIP `.scs`),
-  without extracting them first.
+- Mods can be read as they come (a folder, a HashFS v1 or v2 `.scs` or a
+  ZIP `.scs`), without extracting them first.
+- A standalone map from a mod (its own `.mbd` and sector folder, with no
+  sectors added to `europe`/`usa`) is parsed instead of the game's map; with
+  two `.mbd` files the game's one wins if the mod adds sectors to it.
 - CityHash64 in TypeScript, so it runs on Windows without native modules.
   Without `gdeflate`, icon images are skipped; their names still count, so
   companies and weigh stations are kept.

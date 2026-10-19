@@ -108,8 +108,11 @@ def fingerprint(game: str, game_dir: str, mod_paths: list) -> str:
 
 
 def data_dir() -> str:
-    base = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    return os.path.join(base, "TruckDash")
+    if os.environ.get("LOCALAPPDATA"):
+        return os.path.join(os.environ["LOCALAPPDATA"], "TruckDash")
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~/Library/Application Support"), "TruckDash")
+    return os.path.join(os.path.expanduser("~"), "TruckDash")
 
 
 def maps_dir() -> str:
@@ -151,6 +154,20 @@ def prune_old_maps(game: str, keep: str, max_keep: int = 2):
 
 
 def free_memory_gb() -> float | None:
+    if sys.platform == "darwin":
+        try:
+            page_size = os.sysconf("SC_PAGE_SIZE")
+            out = subprocess.run(["vm_stat"], capture_output=True, text=True, timeout=5).stdout
+            avail_pages = 0
+            for key in ("Pages free", "Pages inactive", "Pages speculative", "Pages purgeable"):
+                m = re.search(rf"{key}:\s+(\d+)", out)
+                if m:
+                    avail_pages += int(m.group(1))
+            if avail_pages > 0:
+                return (avail_pages * page_size) / (1024 ** 3)
+        except Exception:
+            pass
+        return None
     if sys.platform != "win32":
         return None
     import ctypes
@@ -171,6 +188,12 @@ def free_memory_gb() -> float | None:
 
 def game_running() -> bool:
     """Si alguno de los dos juegos esta abierto (por el nombre del proceso)."""
+    if sys.platform == "darwin":
+        try:
+            import window_compat
+            return window_compat._find_macos_game_pid() is not None
+        except Exception:
+            return False
     if sys.platform != "win32":
         return False
     try:
@@ -196,6 +219,39 @@ def _builder_ok(carpeta: str) -> bool:
     return all(os.path.isfile(os.path.join(carpeta, "bin", f)) for f in ("parser.mjs", "generator.mjs", "tiles.mjs"))
 
 
+MACOS_NODE_VERSION = "v22.14.0"
+
+
+def _ensure_macos_node(destino: str):
+    """Si en macOS no hay un binario de Node.js en el sistema ni en la carpeta
+    del armador, baja el oficial de nodejs.org (arm64 o x64)."""
+    if os.path.isfile(_node(destino)):
+        return
+    import platform
+    import tarfile
+    arch = "arm64" if platform.machine() == "arm64" else "x64"
+    carpeta_tar = f"node-{MACOS_NODE_VERSION}-darwin-{arch}"
+    url = f"https://nodejs.org/dist/{MACOS_NODE_VERSION}/{carpeta_tar}.tar.gz"
+    tar_path = os.path.join(destino, "node.tar.gz.part")
+    with red.abrir(url, timeout=60) as resp, open(tar_path, "wb") as f:
+        while True:
+            bloque = resp.read(1 << 20)
+            if not bloque:
+                break
+            f.write(bloque)
+    try:
+        with tarfile.open(tar_path, "r:gz") as tf:
+            miembro = tf.getmember(f"{carpeta_tar}/bin/node")
+            origen = tf.extractfile(miembro)
+            node_dest = os.path.join(destino, "node")
+            with open(node_dest, "wb") as out:
+                shutil.copyfileobj(origen, out)
+            os.chmod(node_dest, 0o755)
+    finally:
+        if os.path.exists(tar_path):
+            os.remove(tar_path)
+
+
 def ensure_builder(version: str, progress=lambda texto: None) -> str:
     """Carpeta del armador, bajandolo si hace falta. TRUCKDASH_MAP_BUILDER
     apunta a uno ya armado (desarrollo: builder/build.sh)."""
@@ -205,50 +261,73 @@ def ensure_builder(version: str, progress=lambda texto: None) -> str:
             raise RuntimeError(f"TRUCKDASH_MAP_BUILDER={propio} is not a map builder folder")
         return propio
     destino = builder_dir(version)
-    if _builder_ok(destino) and os.path.isfile(os.path.join(destino, "node.exe")):
+    tiene_node = (os.path.isfile(os.path.join(destino, "node.exe"))
+                  if sys.platform == "win32" else os.path.isfile(_node(destino)))
+    if _builder_ok(destino) and tiene_node:
         return destino
-    nombre = BUILDER_ZIP.format(version=version)
-    progress("download")
-    with red.abrir(RELEASE_URL.format(version=version, name="SHA256SUMS.txt"), timeout=30) as resp:
-        sumas = resp.read().decode("utf-8", "replace")
-    esperado = None
-    for linea in sumas.splitlines():
-        partes = linea.split()
-        if len(partes) == 2 and partes[1].lstrip("*") == nombre:
-            esperado = partes[0].lower()
-    if not esperado:
-        raise RuntimeError(f"{nombre} is not in this release's SHA256SUMS.txt")
-    os.makedirs(os.path.dirname(destino), exist_ok=True)
-    zip_path = destino + ".zip.part"
-    h = hashlib.sha256()
-    with red.abrir(RELEASE_URL.format(version=version, name=nombre), timeout=60) as resp, open(zip_path, "wb") as f:
-        while True:
-            bloque = resp.read(1 << 20)
-            if not bloque:
-                break
-            h.update(bloque)
-            f.write(bloque)
-    if h.hexdigest() != esperado:
-        os.remove(zip_path)
-        raise RuntimeError("The map builder download did not match its checksum")
-    tmp = destino + ".part"
-    shutil.rmtree(tmp, ignore_errors=True)
-    with zipfile.ZipFile(zip_path) as z:
-        z.extractall(tmp)
-    os.remove(zip_path)
-    # El zip trae una carpeta truckdash-map-builder/ adentro
-    raiz = os.path.join(tmp, "truckdash-map-builder")
-    shutil.rmtree(destino, ignore_errors=True)
-    os.replace(raiz if os.path.isdir(raiz) else tmp, destino)
-    shutil.rmtree(tmp, ignore_errors=True)
     if not _builder_ok(destino):
-        raise RuntimeError("The map builder download is incomplete")
+        nombre = BUILDER_ZIP.format(version=version)
+        progress("download")
+        with red.abrir(RELEASE_URL.format(version=version, name="SHA256SUMS.txt"), timeout=30) as resp:
+            sumas = resp.read().decode("utf-8", "replace")
+        esperado = None
+        for linea in sumas.splitlines():
+            partes = linea.split()
+            if len(partes) == 2 and partes[1].lstrip("*") == nombre:
+                esperado = partes[0].lower()
+        if not esperado:
+            raise RuntimeError(f"{nombre} is not in this release's SHA256SUMS.txt")
+        os.makedirs(os.path.dirname(destino), exist_ok=True)
+        zip_path = destino + ".zip.part"
+        h = hashlib.sha256()
+        with red.abrir(RELEASE_URL.format(version=version, name=nombre), timeout=60) as resp, open(zip_path, "wb") as f:
+            while True:
+                bloque = resp.read(1 << 20)
+                if not bloque:
+                    break
+                h.update(bloque)
+                f.write(bloque)
+        if h.hexdigest() != esperado:
+            os.remove(zip_path)
+            raise RuntimeError("The map builder download did not match its checksum")
+        tmp = destino + ".part"
+        shutil.rmtree(tmp, ignore_errors=True)
+        with zipfile.ZipFile(zip_path) as z:
+            z.extractall(tmp)
+        os.remove(zip_path)
+        # El zip trae una carpeta truckdash-map-builder/ adentro
+        raiz = os.path.join(tmp, "truckdash-map-builder")
+        shutil.rmtree(destino, ignore_errors=True)
+        os.replace(raiz if os.path.isdir(raiz) else tmp, destino)
+        shutil.rmtree(tmp, ignore_errors=True)
+        if not _builder_ok(destino):
+            raise RuntimeError("The map builder download is incomplete")
+    if sys.platform == "darwin" and not os.path.isfile(_node(destino)):
+        progress("download")
+        _ensure_macos_node(destino)
     return destino
 
 
 def _node(builder: str) -> str:
-    propio = os.path.join(builder, "node.exe")
-    return propio if os.path.isfile(propio) else (shutil.which("node") or "node")
+    if sys.platform == "win32":
+        propio = os.path.join(builder, "node.exe")
+        return propio if os.path.isfile(propio) else (shutil.which("node") or "node")
+    propio = os.path.join(builder, "node")
+    if os.path.isfile(propio) and os.access(propio, os.X_OK):
+        return propio
+    en_path = shutil.which("node")
+    if en_path:
+        return en_path
+    for ruta in (
+        "/opt/homebrew/bin/node",
+        "/usr/local/bin/node",
+        os.path.expanduser("~/.nvm/current/bin/node"),
+        os.path.expanduser("~/.volta/bin/node"),
+        os.path.expanduser("~/.fnm/current/bin/node"),
+    ):
+        if os.path.isfile(ruta) and os.access(ruta, os.X_OK):
+            return ruta
+    return "node"
 
 
 def _correr(cmd: list, log_path: str, cancel: threading.Event, env: dict):

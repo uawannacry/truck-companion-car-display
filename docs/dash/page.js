@@ -189,7 +189,8 @@ document.getElementById('fullscreenBtn').addEventListener('click', () => {
 const pantalla = createScreenKeeper({ wakeLock: navigator.wakeLock, doc: document });
 document.addEventListener('visibilitychange', pantalla.sync);
 document.addEventListener('fullscreenchange', pantalla.sync);
-document.addEventListener('pointerup', pantalla.sync, true);
+document.addEventListener('touchend', pantalla.sync, true);
+document.addEventListener('click', pantalla.sync, true);
 document.addEventListener('keydown', pantalla.sync, true);
 
 // --- arranque ---

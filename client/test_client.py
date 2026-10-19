@@ -475,7 +475,9 @@ def test_single_instance_guard(monkeypatch):
     import uuid
     import win_integration
 
-    monkeypatch.setattr(win_integration, "SINGLE_INSTANCE_MUTEX", rf"Local\TruckDashTest-{uuid.uuid4().hex}")
+    uid = uuid.uuid4().hex
+    monkeypatch.setattr(win_integration, "SINGLE_INSTANCE_MUTEX", rf"Local\TruckDashTest-{uid}")
+    monkeypatch.setattr(win_integration, "SINGLE_INSTANCE_LOCK", f"truckdash-test-{uid}.lock")
     monkeypatch.setattr(win_integration, "_single_instance_handle", None)
     assert win_integration.acquire_single_instance() is True
     assert win_integration.acquire_single_instance() is False          # ya tomado
@@ -1036,6 +1038,13 @@ def test_dlc_de_mapa_instalados_por_los_archivos_de_la_carpeta(tmp_path):
                      {"game": "ets2", "bin_dir": str(tmp_path / "no-existe" / "bin" / "win_x64")}]
     # ETS2 sin carpeta legible: no aparece, que no es lo mismo que "ninguno"
     assert client.read_installed_dlcs(instalaciones) == {"ats": ["co", "sd"]}
+    # En macOS bin_dir es <juego>/<App>.app/Contents/MacOS (tres niveles abajo de los .scs).
+    ets_mac = tmp_path / "Euro Truck Simulator 2"
+    (ets_mac / "Euro Truck Simulator 2.app" / "Contents" / "MacOS").mkdir(parents=True)
+    (ets_mac / "dlc_east.scs").write_bytes(b"")
+    assert client.read_installed_dlcs([
+        {"game": "ets2", "bin_dir": str(ets_mac / "Euro Truck Simulator 2.app" / "Contents" / "MacOS")},
+    ]) == {"ets2": ["east"]}
 
 
 def test_dlc_de_mapa_los_mismos_ids_que_la_web():

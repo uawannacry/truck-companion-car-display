@@ -4,9 +4,7 @@
 <meta charset="utf-8" />
 <meta name="robots" content="noindex, nofollow" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-<!-- viewport-fit=cover: sin esto env(safe-area-inset-*) vale 0 y en pantalla
-     completa las indicaciones quedan abajo de la camara del telefono. -->
-<title>Truck Dash – Live Dashboard</title>
+<title>Truck Dash – Car Display</title>
 <link rel="icon" type="image/svg+xml" href="assets/logo.svg" />
 <link rel="manifest" href="manifest.json" />
 <meta name="theme-color" content="#0d0f12" />
@@ -15,78 +13,594 @@
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <link rel="stylesheet" href="vendor/maplibre-gl-4.7.1.css" />
-<link rel="stylesheet" href="../dash/dash.css?v=20261017h" />
-<link rel="stylesheet" href="../dash/classic.css?v=20261017h" />
-<link rel="stylesheet" href="app.css?v=20261017h" />
+<link rel="stylesheet" href="../dash/dash.css?v=20261018c" />
+<link rel="stylesheet" href="../dash/classic.css?v=20261018c" />
+<link rel="stylesheet" href="app.css?v=20261018c" />
 <script>
-// Dentro de la app de Android (TWA, android/) no van los links de donar:
-// Play no deja mandar a pagar fuera de su sistema. La primera pagina llega
-// con referrer android-app://; las que siguen lo leen de la sesion.
 try { if (document.referrer.indexOf('android-app://com.trucksimdash.app') === 0) sessionStorage.setItem('truckdash_twa', '1'); if (sessionStorage.getItem('truckdash_twa') === '1') document.documentElement.classList.add('twa'); } catch (e) {}
-// Vista de cabina (?cab=1, ver initCab en app.js): la clase va antes de
-// pintar, si no se veia un momento el tablero entero.
 if (/[?&]cab=1(&|$)/.test(location.search)) document.documentElement.classList.add('cab');
 </script>
 </head>
 <body>
   <div id="toastContainer" role="status" aria-live="polite"></div>
-  <!-- El proximo giro para lectores de pantalla, una vez por maniobra
-       (createTurnAnnouncer): el panel de navegacion cambia en cada dato. -->
   <div id="navLive" class="srOnly" aria-live="polite" aria-atomic="true"></div>
-  <h1 class="appTitle"><img src="assets/logo.svg" alt="" style="height:1.1em;width:1.1em;" /> Truck Dash — ETS2 / ATS</h1>
-  <div class="setup" id="setupRow">
-    <input id="backendUrl" value="wss://truck-companion-production.up.railway.app" size="34" style="display:none" />
-    <div class="connectGroup" id="connectGroup">
-      <input id="code" data-i18n-placeholder="pairingCode" maxlength="8" style="text-transform:uppercase" />
-      <button id="connectBtn" data-i18n="connect">Connect</button>
-    </div>
-    <div class="statusChip" id="statusChip" hidden>
-      <span class="statusDot" id="statusDot"></span>
-      <span id="statusChipText"></span><span id="spectatorCode" hidden></span>
-      <button id="changeCodeBtn" class="chipBtn" data-i18n-title="changeCode" title="Use another code">✎</button>
-    </div>
-    <div class="topActions">
-      <button class="iconBtn secondary" id="unitToggle" data-i18n-title="toggleUnits" title="Toggle units">km</button>
-      <select class="iconBtn secondary langSelect" id="langSelect" data-i18n-title="toggleLanguage" title="Language">
-        <option value="en" title="English">EN</option>
-        <option value="es" title="Español">ES</option>
-        <option value="de" title="Deutsch">DE</option>
-        <option value="fr" title="Français">FR</option>
-        <option value="pt" title="Português (BR)">PT</option>
-        <option value="pl" title="Polski">PL</option>
-        <option value="tr" title="Türkçe">TR</option>
-        <option value="ru" title="Русский">RU</option>
-      </select>
-      <button class="iconBtn secondary" id="modsBtn" data-i18n-title="modsTitle" title="Map mods"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 7h4a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-4v-3a1.5 1.5 0 0 0-3 0v3H7a2 2 0 0 1-2-2v-4h3a1.5 1.5 0 0 0 0-3H5V9a2 2 0 0 1 2-2h4V4a1.5 1.5 0 0 1 3 0v3z"/></svg></button>
-      <a class="iconBtn secondary discord" id="discordBtn" href="https://discord.gg/K7Xq4628tg" target="_blank" rel="noopener" data-i18n-title="joinDiscord" title="Join our Discord"><svg viewBox="0 0 127.14 96.36" width="18" height="18" fill="currentColor"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.9,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg></a>
-      <button class="iconBtn secondary" id="convoyBtn" data-i18n-title="convoyTitle" title="Convoy (beta)" style="position:relative"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M1 10h7v5H1z"/><circle cx="3" cy="17" r="1.2"/><circle cx="6.4" cy="17" r="1.2"/><path d="M11 8h6l4 4v3H11z"/><circle cx="13.6" cy="17" r="1.3"/><circle cx="19" cy="17" r="1.3"/></svg><span id="convoyBadge" class="mapBtnBadge" style="display:none">0</span></button>
-      <button class="iconBtn" id="dashBtn" data-i18n-title="dashOpenPanel" title="Dashboard panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 18 0"/><path d="M3 12v4h18v-4"/><path d="M12 12l4-3"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg></button>
-      <button class="iconBtn" id="settingsBtn" data-i18n-title="settings" title="Settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
-      <button class="iconBtn" id="helpBtn" data-i18n-title="replayTour" title="Show quick tour">?</button>
-    </div>
+
+  <!-- iOS Safari PWA Fullscreen Immersion Pill Hint -->
+  <div id="iosPwaHint" class="iosPwaHint" hidden>
+    <span>For 100% borderless Car Display on iPhone: tap <b>Share ⎋</b> → <b>Add to Home Screen</b></span>
+    <button type="button" id="iosPwaHintClose" aria-label="Close hint">✕</button>
   </div>
 
-  <!-- Panel a pantalla completa: el mismo modulo que sirve docs/dash/ en un
-       segundo dispositivo. Aca esta para quien tiene uno solo y quiere
-       alternar sin recargar el mapa. -->
-  <div id="dashOverlay" class="dashOverlay" hidden>
-    <div class="dashOverlayBar">
-      <span class="dashOverlayTitle" data-i18n="dashTitle">Dashboard</span>
-      <div class="sizeGroup" id="dashStyleGroup" data-i18n-title="dashStyle" hidden>
-        <button class="iconBtn secondary" data-dash-style="modern" data-i18n="dashStyleModern">Modern</button>
-        <button class="iconBtn secondary" data-dash-style="classic" data-i18n="dashStyleClassic">Classic</button>
+  <button type="button" id="floatingFsExitBtn" class="floatingFsExitBtn" title="Exit Fullscreen Immersion" hidden>
+    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+    <span>Exit Fullscreen</span>
+  </button>
+
+  <!-- =========================================================================
+       CAR DISPLAY INFOTAINMENT OPERATING SYSTEM SHELL
+       ========================================================================= -->
+  <div id="carplayShell" class="carplayShell view-dashboard" data-active-app="dashboard">
+    <!-- CARPLAY SYSTEM DOCK (Driver side in landscape / bottom in portrait) -->
+    <aside id="carplayDock" class="carplayDock" aria-label="Car Display Dock">
+      <div class="dockStatusCluster">
+        <div class="dockClock" id="dockClock">--:--</div>
+        <div class="dockSignalGroup">
+          <span class="dockSignalBars"><i></i><i></i><i></i><i></i></span>
+          <span class="dockStatusDot" id="dockStatusDot" title="ETS2 Telemetry"></span>
+        </div>
       </div>
-      <div class="sizeGroup" id="dashSizeGroup" data-i18n-title="dashSize">
-        <button class="iconBtn secondary" data-dash-scale="0.85">S</button>
-        <button class="iconBtn secondary" data-dash-scale="1">M</button>
-        <button class="iconBtn secondary" data-dash-scale="1.2">L</button>
+
+      <nav class="dockAppGrid">
+        <button type="button" class="dockSquircleBtn active" id="dockSplitBtn" data-app="dashboard" title="Car Display Dashboard">
+          <div class="squircleIcon iconDashboard">
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="18" rx="2"/><rect x="12" y="3" width="9" height="8" rx="2"/><rect x="12" y="13" width="9" height="8" rx="2"/></svg>
+          </div>
+        </button>
+
+        <button type="button" class="dockSquircleBtn" id="dockMapBtn" data-app="maps" title="Maps Navigation">
+          <div class="squircleIcon iconMaps">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+          </div>
+        </button>
+
+        <button type="button" class="dockSquircleBtn" id="dockMusicBtn" data-app="music" title="Now Playing Music">
+          <div class="squircleIcon iconMusic">
+            <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            <div class="dockMusicWave" id="dockMusicWave"><i></i><i></i><i></i></div>
+          </div>
+        </button>
+
+        <button type="button" class="dockSquircleBtn" id="dockGaugesBtn" data-app="gauges" title="Instrument Cluster">
+          <div class="squircleIcon iconGauges">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14l4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+          </div>
+        </button>
+      </nav>
+
+      <div class="dockBottomCluster">
+        <button type="button" class="dockActionBtn" id="dockFsBtn" title="Fullscreen Immersion">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
+
+        <button type="button" class="dockHomeBtn" id="dockHomeBtn" title="Car Display Home (App Grid)">
+          <div class="homeDotsGrid">
+            <span></span><span></span><span></span><span></span>
+            <span></span><span></span><span></span><span></span>
+          </div>
+        </button>
       </div>
-      <button class="iconBtn" id="dashCloseBtn" data-i18n-title="dashOpenGps" title="GPS map">✕</button>
-    </div>
-    <div id="dashOverlayPanel"></div>
+    </aside>
+
+    <!-- CARPLAY MAIN STAGE -->
+    <main id="carplayStage" class="carplayStage">
+      <!-- SHARED MAP CONTAINER (MapLibre GL MapCanvas) -->
+      <div id="carplayMapHost" class="carplayMapHost">
+        <div id="mapCanvas"></div>
+        <div id="mapAway" class="mapAway" hidden>
+          <p data-i18n="pipMapAway">The map is in the floating window.</p>
+          <button type="button" id="mapAwayBack" data-i18n="pipMapBack">Bring it back</button>
+        </div>
+        <div id="convoyEdgeLayer" class="convoyEdgeLayer"></div>
+        <div id="convoyMsgPop" class="convoyMsgPop" style="display:none"></div>
+
+        <!-- Floating Speed & Gear Cluster -->
+        <div class="floatingSpeedCluster" id="floatingSpeedCluster">
+          <div class="limitSign" id="limitSign">--</div>
+          <div class="floatingSpeedPill">
+            <span class="speedBig" id="speedBig">--</span>
+            <span class="speedGearBadge" id="speedGearBadge">N</span>
+            <span class="speedUnit" id="speedUnitLabel">km/h</span>
+          </div>
+        </div>
+
+        <!-- Floating Map Action Buttons -->
+        <div class="floatingMapControls" id="floatingMapControls">
+          <button id="recenterBtn" class="cpGlassBtn" data-i18n-title="recenter" title="Recenter on truck">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M12 2 L14.7 6.8 L9.3 6.8 Z"/><path d="M12 22 L14.7 17.2 L9.3 17.2 Z"/><path d="M2 12 L6.8 9.3 L6.8 14.7 Z"/><path d="M22 12 L17.2 9.3 L17.2 14.7 Z"/><circle cx="12" cy="12" r="1.7"/></svg>
+          </button>
+          <button id="navToggleBtn" class="cpGlassBtn" data-i18n-title="toggleNavMode" title="Navigation mode">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8.7 2 L2.5 22 L6 22 L11 4.7 Z"/><path d="M15.3 2 L21.5 22 L18 22 L13 4.7 Z"/><rect x="10.9" y="3" width="1.7" height="3"/><rect x="11" y="8.2" width="1.7" height="3"/><rect x="11.1" y="13.4" width="1.7" height="3"/><rect x="11.2" y="18.6" width="1.7" height="2.5"/></svg>
+          </button>
+          <button id="tilt3dBtn" class="cpGlassBtn" data-i18n-title="toggle3d" title="3D view" style="display:none">
+            <span class="btnText">3D</span>
+          </button>
+          <button id="poiBtn" class="cpGlassBtn" data-i18n-title="poiTitle" title="Find nearby">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          </button>
+          <button id="waypointBtn" class="cpGlassBtn" data-i18n-title="toggleWaypointMode" title="Add waypoint">
+            <span id="waypointCount" class="mapBtnBadge" style="display:none">0</span>
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 2v20h2v-7h9l-1.5-3.5L17 8H8V2H6z"/></svg>
+          </button>
+        </div>
+
+        <!-- Fullscreen Maps Turn Island -->
+        <div class="cpFloatingTurnIsland" id="cpFloatingTurnIsland">
+          <div class="turnIslandIcon" id="islandTurnIcon">
+            <svg viewBox="0 0 24 30" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 28V17"/><path d="M12 17l6-6"/><polygon points="18,11 18,17 12,11" fill="#fff" stroke="none"/></svg>
+          </div>
+          <div class="turnIslandInfo">
+            <div class="turnIslandDist" id="islandTurnDist">--</div>
+            <div class="turnIslandStreet" id="islandTurnStreet">Continue on route</div>
+          </div>
+        </div>
+
+        <!-- Fullscreen Maps Route Bar -->
+        <div class="cpFloatingRouteBar" id="cpFloatingRouteBar">
+          <div class="routeBarStat"><b id="routeRemaining">--</b><span>Left</span></div>
+          <div class="routeBarStat"><b id="routeDuration">--</b><span>Time</span></div>
+          <div class="routeBarStat"><b id="routeArrival">--</b><span>Arrival</span></div>
+          <button type="button" class="cpGlassBtn small" id="routeResetBtn" title="Clear route">✕</button>
+        </div>
+
+        <div id="mapLoading" class="mapLoading" style="display:none;"><span class="mapSpinner"></span><span id="mapLoadingText"></span></div>
+        <div class="mapHint" id="mapHint" data-i18n="mapNotLoaded">Map not loaded</div>
+        <div class="mapNoWebgl" id="mapNoWebgl" hidden>
+          <b data-i18n="noWebglTitle">The map needs WebGL</b>
+          <p data-i18n="noWebglBody">This browser has WebGL turned off.</p>
+        </div>
+        <div id="reconnectBanner"></div>
+      </div>
+
+      <!-- CARPLAY APP VIEWS CONTAINER -->
+      <div id="carplayAppContainer" class="carplayAppContainer">
+        <!-- 1. DASHBOARD SPLIT VIEW (Right Stack: Turn Card + Music Card) -->
+        <div class="cpAppView active" id="cpAppDashboard">
+          <div class="cpDashboardStack">
+            <!-- Navigation Turn Card -->
+            <div class="card carplayTurnCard" id="carplayTurnCard">
+              <div class="cpTurnHead">
+                <span class="cpTurnBadge">NAVIGATION</span>
+                <span class="cpTurnCity" id="cpTurnCity"></span>
+              </div>
+              <div class="cpTurnMain">
+                <div class="cpTurnIconBadge" id="cpTurnIcon">
+                  <svg viewBox="0 0 24 30" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 28V17"/><path d="M12 17l6-6"/><polygon points="18,11 18,17 12,11" fill="#fff" stroke="none"/></svg>
+                </div>
+                <div class="cpTurnContent">
+                  <div class="cpTurnDist" id="cpTurnDist">--</div>
+                  <div class="cpTurnStreet" id="cpTurnStreet">Continue on route</div>
+                  <div class="cpTurnNext" id="cpTurnNext" hidden></div>
+                  <div class="cpTurnLanes" id="cpTurnLanes"></div>
+                </div>
+              </div>
+              <div class="cpTurnEtaRow">
+                <span class="cpEtaStat"><b id="cpEtaArrival">--:--</b> <span>Arrival</span></span>
+                <span class="cpEtaStat"><b id="cpEtaRemain">--</b> <span>Remaining</span></span>
+                <span class="cpEtaStat"><b id="cpEtaDist">--</b> <span>Distance</span></span>
+              </div>
+            </div>
+
+            <!-- Apple Music Card -->
+            <div class="card musicCard" id="musicCard">
+              <div class="cardTitle cardTitleRow">
+                <span class="musicHeadLeft">
+                  <span class="musicEq" id="musicEq" aria-hidden="true"><i></i><i></i><i></i></span>
+                  <span id="musicStatusLabel">NOW PLAYING</span>
+                </span>
+                <span class="musicHeadRight">
+                  <span class="musicTrackIdx" id="musicTrackIdx"></span>
+                  <button type="button" class="musicRadioKeyBtn" data-music-action="toggle_radio_window" title="In-game Radio window (R)">R</button>
+                </span>
+              </div>
+              <div class="musicNowPlaying" id="musicCardOpenFull">
+                <div class="musicVinylArt">
+                  <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3" fill="#1c1c1e"/></svg>
+                </div>
+                <div class="musicTextCol">
+                  <div class="musicTitle" id="musicTitle">No track playing</div>
+                  <div class="musicArtist" id="musicArtist">ETS2 In-Game Library</div>
+                </div>
+              </div>
+              <div class="musicProgressWrap" id="musicProgressWrap">
+                <div class="musicProgressTrack"><div class="musicProgressBar" id="musicProgressBar"></div></div>
+                <div class="musicTimeRow"><span id="musicElapsed">0:00</span><span id="musicDuration">0:00</span></div>
+              </div>
+              <div class="musicControlsRow">
+                <button type="button" class="musicCtrlBtn" data-music-action="music_prev" title="Previous (PgUp)">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                </button>
+                <button type="button" class="musicCtrlBtn primary" id="musicPlayPauseBtn" data-music-action="music_play_pause" title="Play/Pause (/)">
+                  <svg id="musicPlayIcon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <svg id="musicPauseIcon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                <button type="button" class="musicCtrlBtn" data-music-action="music_next" title="Next (PgDn)">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                </button>
+                <button type="button" class="musicCtrlBtn vol" data-music-action="music_vol_down" title="Vol - (,)">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M7 9v6h4l5 5V4l-5 5H7z"/></svg><span>−</span>
+                </button>
+                <button type="button" class="musicCtrlBtn vol" data-music-action="music_vol_up" title="Vol + (.)">
+                  <svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg><span>+</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. HOME SCREEN (App Grid / Launcher with 2 Pages) -->
+        <div class="cpAppView" id="cpAppHome">
+          <div class="cpHomePagesTrack" id="cpHomePagesTrack">
+            <!-- PAGE 1 -->
+            <div class="cpHomePage" data-page="0">
+              <div class="cpHomeGrid">
+                <button type="button" class="cpAppTile" data-app="maps">
+                  <div class="cpTileIcon iconMaps">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+                  </div>
+                  <span>Maps</span>
+                </button>
+
+                <button type="button" class="cpAppTile" data-app="music">
+                  <div class="cpTileIcon iconMusic">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+                  </div>
+                  <span>Now Playing</span>
+                </button>
+
+                <button type="button" class="cpAppTile" data-app="dashboard">
+                  <div class="cpTileIcon iconDashboard">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="18" rx="2"/><rect x="12" y="3" width="9" height="8" rx="2"/><rect x="12" y="13" width="9" height="8" rx="2"/></svg>
+                  </div>
+                  <span>Dashboard</span>
+                </button>
+
+                <button type="button" class="cpAppTile" data-app="gauges">
+                  <div class="cpTileIcon iconGauges">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14l4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+                  </div>
+                  <span>Gauges</span>
+                </button>
+
+                <button type="button" class="cpAppTile" data-app="trip">
+                  <div class="cpTileIcon iconTrip">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13" rx="2"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+                  </div>
+                  <span>Cargo &amp; Job</span>
+                </button>
+
+                <button type="button" class="cpAppTile" data-app="controls">
+                  <div class="cpTileIcon iconControls">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 12h4M9 10v4"/><circle cx="16.5" cy="10.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/></svg>
+                  </div>
+                  <span>Vehicle</span>
+                </button>
+
+                <button type="button" class="cpAppTile" id="homePoiTile">
+                  <div class="cpTileIcon iconServices">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22v-8a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v8"/><path d="M13 14h2a2 2 0 0 1 2 2v6"/><circle cx="7" cy="7" r="3"/><circle cx="17" cy="17" r="1"/></svg>
+                  </div>
+                  <span>Services</span>
+                </button>
+
+                <button type="button" class="cpAppTile" data-app="settings">
+                  <div class="cpTileIcon iconSettings">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  </div>
+                  <span>Settings</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- PAGE 2 -->
+            <div class="cpHomePage" data-page="1">
+              <div class="cpHomeGrid">
+                <button type="button" class="cpAppTile" id="homeRadioTile" data-music-action="toggle_radio_window">
+                  <div class="cpTileIcon iconRadio">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14"/></svg>
+                  </div>
+                  <span>Radio (R)</span>
+                </button>
+
+                <button type="button" class="cpAppTile" id="homeWaypointTile">
+                  <div class="cpTileIcon iconWaypoints">
+                    <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 2v20h2v-7h9l-1.5-3.5L17 8H8V2H6z"/></svg>
+                  </div>
+                  <span>Waypoints</span>
+                </button>
+
+                <button type="button" class="cpAppTile" id="homeCameraTile" data-action="cycle_camera">
+                  <div class="cpTileIcon iconCamera">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="14" height="11" rx="2"/><path d="M16 10.5l5-3v9l-5-3Z"/></svg>
+                  </div>
+                  <span>Camera (F1)</span>
+                </button>
+
+                <button type="button" class="cpAppTile" id="homeConvoyTile">
+                  <div class="cpTileIcon iconConvoy">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 10h7v5H1z"/><circle cx="3" cy="17" r="1.2"/><circle cx="6.4" cy="17" r="1.2"/><path d="M11 8h6l4 4v3H11z"/><circle cx="13.6" cy="17" r="1.3"/><circle cx="19" cy="17" r="1.3"/></svg>
+                  </div>
+                  <span>Convoy</span>
+                </button>
+
+                <button type="button" class="cpAppTile" id="homeFsTile">
+                  <div class="cpTileIcon iconFullscreen">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                  </div>
+                  <span>Fullscreen</span>
+                </button>
+
+                <button type="button" class="cpAppTile" data-action="toggle_trailer">
+                  <div class="cpTileIcon iconTrailer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13v10H8z"/><path d="M8 13H4.2"/><circle cx="2.6" cy="13" r="1.2"/><circle cx="12.5" cy="18" r="1.5"/><circle cx="17.5" cy="18" r="1.5"/></svg>
+                  </div>
+                  <span>Attach Trailer</span>
+                </button>
+
+                <button type="button" class="cpAppTile" id="homeRecenterTile">
+                  <div class="cpTileIcon iconRecenter">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2 L14.7 6.8 L9.3 6.8 Z"/><path d="M12 22 L14.7 17.2 L9.3 17.2 Z"/><path d="M2 12 L6.8 9.3 L6.8 14.7 Z"/><path d="M22 12 L17.2 9.3 L17.2 14.7 Z"/><circle cx="12" cy="12" r="1.7"/></svg>
+                  </div>
+                  <span>Recenter GPS</span>
+                </button>
+
+                <button type="button" class="cpAppTile" data-app="gauges">
+                  <div class="cpTileIcon iconEco">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 12 L16 8"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg>
+                  </div>
+                  <span>Cruise &amp; Eco</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="cpHomeDots">
+            <span class="active" data-page="0"></span>
+            <span data-page="1"></span>
+          </div>
+        </div>
+
+        <!-- 3. FULL MUSIC APP -->
+        <div class="cpAppView" id="cpAppMusic">
+          <div class="cpMusicContainer">
+            <div class="cpMusicLeftCol">
+              <div class="cpMusicCoverArt" id="cpMusicCoverArt">
+                <svg viewBox="0 0 24 24" width="90" height="90" fill="currentColor"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3.5" fill="#12141a"/></svg>
+              </div>
+              <div class="cpMusicSubInfo">
+                <span class="cpMusicQueueIdx" id="cpMusicQueueIdx">In-Game Library</span>
+                <span class="cpMusicSourceLabel">Euro Truck Simulator 2</span>
+              </div>
+            </div>
+            <div class="cpMusicRightCol">
+              <div class="cpMusicMeta">
+                <h2 class="cpMusicTrackTitle" id="fullMusicTitle">No track playing</h2>
+                <h3 class="cpMusicArtist" id="fullMusicArtist">ETS2 Music Library</h3>
+              </div>
+              <div class="cpMusicScrubBar" id="cpMusicScrubBar" title="Scrub song">
+                <div class="cpScrubTrack" id="cpScrubTrack">
+                  <div class="cpScrubFill" id="fullMusicProgressBar"></div>
+                  <div class="cpScrubThumb" id="fullMusicProgressThumb"></div>
+                </div>
+                <div class="cpScrubTimes">
+                  <span id="fullMusicElapsed">0:00</span>
+                  <span id="fullMusicDuration">0:00</span>
+                </div>
+              </div>
+              <div class="cpMusicPlaybackRow">
+                <button type="button" class="cpMusicRoundBtn" data-music-action="music_prev" title="Previous (PgUp)">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+                </button>
+                <button type="button" class="cpMusicPlayLargeBtn" data-music-action="music_play_pause" title="Play/Pause (/)">
+                  <svg id="fullMusicPlayIcon" viewBox="0 0 24 24" width="32" height="32" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+                  <svg id="fullMusicPauseIcon" viewBox="0 0 24 24" width="32" height="32" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+                </button>
+                <button type="button" class="cpMusicRoundBtn" data-music-action="music_next" title="Next (PgDn)">
+                  <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+                </button>
+              </div>
+              <div class="cpMusicVolumeRow">
+                <button type="button" class="cpGlassBtn" data-music-action="music_vol_down" title="Volume Down (,)">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M7 9v6h4l5 5V4l-5 5H7z"/></svg> −
+                </button>
+                <button type="button" class="cpGlassBtn" data-music-action="music_vol_up" title="Volume Up (.)">
+                  <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg> +
+                </button>
+                <button type="button" class="cpGlassBtn radioBtn" data-music-action="toggle_radio_window" title="Toggle in-game Radio window (R)">
+                  Radio Window (R)
+                </button>
+              </div>
+              <div class="cpMusicTrackQueue">
+                <div class="cpQueueHeader">In-Game Library Tracks</div>
+                <div class="cpQueueList" id="cpQueueList">
+                  <div class="cpQueueItem active"><span class="qNum">1</span><span class="qTitle">Ready for playback</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. GAUGES / INSTRUMENT CLUSTER APP -->
+        <div class="cpAppView" id="cpAppGauges">
+          <div class="cpGaugesContainer">
+            <div class="cpGaugeCard mainCluster">
+              <div class="cpSpeedoWrap">
+                <div class="cpGaugeGear" id="fullGaugeGear">N</div>
+                <div class="cpSpeedoDigital">
+                  <span class="cpBigNum" id="fullSpeedBig">--</span>
+                  <span class="cpUnitLabel" id="fullSpeedUnit">km/h</span>
+                </div>
+                <div class="cpLimitBadge" id="fullLimitSign">--</div>
+              </div>
+              <div class="cpRpmCluster">
+                <div class="cpRpmTrack">
+                  <div class="cpRpmBand eco"></div>
+                  <div class="cpRpmBand redline"></div>
+                  <div class="cpRpmFill" id="fullRpmFill"></div>
+                </div>
+                <div class="cpRpmLabels"><span>0</span><span>1000</span><span class="ecoText">ECO</span><span>2000</span><span class="redText">2500</span></div>
+              </div>
+            </div>
+
+            <div class="cpGaugeCard">
+              <div class="cpCardTitle">POWERTRAIN &amp; FUEL</div>
+              <div class="cpStatRow"><span class="cpLabel">Fuel Range</span><span class="cpVal" id="fullFuelRange">-- km</span></div>
+              <div class="cpStatRow"><span class="cpLabel">Fuel Level</span><span class="cpVal" id="fullFuelPct">-- %</span></div>
+              <div class="cpStatRow"><span class="cpLabel">Avg Consumption</span><span class="cpVal" id="fullFuelAvg">-- L/100km</span></div>
+              <div class="cpStatRow"><span class="cpLabel">Cruise Control</span><span class="cpVal" id="fullCruiseSpeed">OFF</span></div>
+              <div class="cpStatRow"><span class="cpLabel">Retarder</span><span class="cpVal" id="fullRetarderLevel">0 / 4</span></div>
+            </div>
+
+            <div class="cpGaugeCard">
+              <div class="cpCardTitle">VEHICLE HEALTH</div>
+              <div class="cpStatRow"><span class="cpLabel">Truck Damage</span><span class="cpVal" id="fullTruckWear">0%</span></div>
+              <div class="cpStatRow"><span class="cpLabel">Trailer Damage</span><span class="cpVal" id="fullTrailerWear">0%</span></div>
+              <div class="cpStatRow"><span class="cpLabel">Air Brake Pressure</span><span class="cpVal" id="fullAirPressure">-- bar</span></div>
+              <div class="cpStatRow"><span class="cpLabel">Oil Temperature</span><span class="cpVal" id="fullOilTemp">-- °C</span></div>
+              <div class="cpStatRow"><span class="cpLabel">Odometer</span><span class="cpVal" id="fullOdometer">-- km</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. VEHICLE CONTROLS APP -->
+        <div class="cpAppView" id="cpAppControls">
+          <div class="cpControlsGrid">
+            <button type="button" class="cpSwitchBtn" id="cmdEngine" data-action="toggle_engine">
+              <span class="swLed"></span><span class="swIcon">⚡</span><span class="swName">Engine Start / Stop</span>
+            </button>
+            <button type="button" class="cpSwitchBtn" id="cmdHandbrake" data-action="toggle_parking_brake">
+              <span class="swLed"></span><span class="swIcon">🅿️</span><span class="swName">Parking Brake</span>
+            </button>
+            <button type="button" class="cpSwitchBtn" id="cmdHazards" data-action="toggle_hazards">
+              <span class="swLed"></span><span class="swIcon">⚠️</span><span class="swName">Hazard Flashers</span>
+            </button>
+            <button type="button" class="cpSwitchBtn" id="cmdLights" data-action="cycle_lights">
+              <span class="swLed"></span><span class="swIcon">💡</span><span class="swName">Headlights</span>
+            </button>
+            <button type="button" class="cpSwitchBtn" id="cmdHighBeam" data-action="toggle_high_beam">
+              <span class="swLed"></span><span class="swIcon">🔦</span><span class="swName">High Beams</span>
+            </button>
+            <button type="button" class="cpSwitchBtn" id="cmdBeacon" data-action="toggle_beacon">
+              <span class="swLed"></span><span class="swIcon">🚨</span><span class="swName">Beacon Light</span>
+            </button>
+            <button type="button" class="cpSwitchBtn" id="cmdWipers" data-action="toggle_wipers">
+              <span class="swLed"></span><span class="swIcon">🌧️</span><span class="swName">Wipers</span>
+            </button>
+            <button type="button" class="cpSwitchBtn" id="cmdDifferential" data-action="toggle_differential_lock">
+              <span class="swLed"></span><span class="swIcon">🔒</span><span class="swName">Diff Lock</span>
+            </button>
+            <button type="button" class="cpSwitchBtn" id="cmdLiftAxle" data-action="toggle_lift_axle">
+              <span class="swLed"></span><span class="swIcon">⬆️</span><span class="swName">Lift Axle</span>
+            </button>
+            <button type="button" class="cpSwitchBtn" id="cmdCruise" data-action="toggle_cruise_control">
+              <span class="swLed"></span><span class="swIcon">🎯</span><span class="swName">Cruise Control</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 6. TRIP & CARGO APP -->
+        <div class="cpAppView" id="cpAppTrip">
+          <div class="cpTripContainer">
+            <div class="cpTripMainCard">
+              <div class="cpCargoHead">
+                <span class="cpCargoIcon">📦</span>
+                <div>
+                  <h2 class="cpCargoName" id="fullCargoName">No active delivery</h2>
+                  <span class="cpCargoWeight" id="fullCargoWeight">0.0 t</span>
+                </div>
+              </div>
+              <div class="cpRouteSteps">
+                <div class="cpStepItem">
+                  <span class="stepDot start"></span>
+                  <div>
+                    <span class="stepLabel">Origin</span>
+                    <span class="stepPlace" id="fullCitySrc">—</span>
+                  </div>
+                </div>
+                <div class="cpStepItem">
+                  <span class="stepDot end"></span>
+                  <div>
+                    <span class="stepLabel">Destination</span>
+                    <span class="stepPlace" id="fullCityDst">—</span>
+                  </div>
+                </div>
+              </div>
+              <div class="cpTripStatsGrid">
+                <div class="cpTStat"><span class="tLabel">Planned Income</span><span class="tVal" id="fullJobIncome">--</span></div>
+                <div class="cpTStat"><span class="tLabel">Delivery Deadline</span><span class="tVal" id="fullJobDeadline">--</span></div>
+                <div class="cpTStat"><span class="tLabel">Distance Left</span><span class="tVal" id="fullTripDist">--</span></div>
+                <div class="cpTStat"><span class="tLabel">Estimated Time</span><span class="tVal" id="fullTripTime">--</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. SETTINGS APP -->
+        <div class="cpAppView" id="cpAppSettings">
+          <div class="cpSettingsContainer">
+            <div class="cpSettingsGroup">
+              <div class="cpGroupTitle">CONNECTION</div>
+              <div class="cpSettingsRow">
+                <span>Telemetry Status</span>
+                <span class="cpBadge" id="cpSettingsStatusBadge">Connecting...</span>
+              </div>
+              <div class="cpSettingsRow">
+                <span>Pairing Code</span>
+                <div class="cpCodeInputWrap">
+                  <input id="cpCodeInput" maxlength="8" placeholder="CODE" style="text-transform:uppercase" />
+                  <button type="button" class="cpGlassBtn small" id="cpConnectBtn">Connect</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="cpSettingsGroup">
+              <div class="cpGroupTitle">SCREEN &amp; IMMERSION</div>
+              <div class="cpSettingsRow" id="cpFsSettingRow">
+                <span>Fullscreen Mode</span>
+                <button type="button" class="cpGlassBtn small" id="cpToggleFsBtn">Toggle Fullscreen</button>
+              </div>
+              <div class="cpSettingsRow">
+                <span>iPhone Edge-to-Edge</span>
+                <span class="cpSubText">Add to Home Screen (Share ⎋ → Add)</span>
+              </div>
+            </div>
+
+            <div class="cpSettingsGroup">
+              <div class="cpGroupTitle">UNITS &amp; VOICE</div>
+              <div class="cpSettingsRow">
+                <span>Speed &amp; Distance</span>
+                <button type="button" class="cpGlassBtn small" id="cpUnitToggle">km / mph</button>
+              </div>
+              <div class="cpSettingsRow">
+                <span>Voice Navigation</span>
+                <select id="cpVoiceSelect" class="cpSelect">
+                  <option value="en-kristin-v4">Kristin (English)</option>
+                  <option value="es-daniela-v4">Daniela (Spanish)</option>
+                  <option value="de-thorsten-v4">Thorsten (German)</option>
+                  <option value="fr-siwis-v4">Siwis (French)</option>
+                  <option value="pt-cadu-v4">Cadu (Portuguese)</option>
+                  <option value="pl-gosia-v4">Gosia (Polish)</option>
+                  <option value="ru-dmitri-v4">Dmitri (Russian)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </main>
   </div>
 
-  <div id="settingsModal" class="settingsOverlay" style="display:none;">
+  <!-- POPUP MODALS -->
+<div id="settingsModal" class="settingsOverlay" style="display:none;">
     <div class="settingsPanel">
       <h3 data-i18n="settingsTitle">Settings</h3>
 
@@ -216,38 +730,7 @@ if (/[?&]cab=1(&|$)/.test(location.search)) document.documentElement.classList.a
     </div>
   </div>
 
-  <div id="convoyModal" class="settingsOverlay" style="display:none;">
-    <div class="settingsPanel">
-      <h3><span data-i18n="convoyTitle">Convoy</span> <span class="betaTag">beta</span></h3>
-      <div id="convoyOut">
-        <p class="settingsHint" data-i18n="convoyIntro">Share a code with friends: everyone sees each other on the map and in a card carousel. Each one runs their own game and client - no need to be in the same session.</p>
-        <label class="settingsRow"><span data-i18n="convoyNickLabel">Nickname</span> <input id="convoyNick" type="text" maxlength="16" class="convoyInput" placeholder="Netherman"></label>
-        <label class="settingsRow"><input type="checkbox" id="convoyShareIncome"> <span data-i18n="convoyShareIncome">Show my job pay to the others</span></label>
-        <p class="settingsSectionTitle" data-i18n="convoyCreateTitle">Start a convoy:</p>
-        <label class="settingsRow"><input type="checkbox" id="convoyPostSummary"> <span data-i18n="convoyPostSummary">Post a summary in the Truck Dash Discord when it ends</span></label>
-        <button id="convoyCreateBtn" class="settingsLinkBtn" data-i18n="convoyCreate">Create convoy</button>
-        <p class="settingsSectionTitle" data-i18n="convoyJoinTitle">Join one:</p>
-        <div class="convoyJoinRow"><input id="convoyCodeInput" type="text" maxlength="6" class="convoyInput code" placeholder="CODE" autocapitalize="characters"><button id="convoyJoinBtn" class="settingsLinkBtn" data-i18n="convoyJoin">Join</button></div>
-        <p class="settingsHint" id="convoyNotConnected" hidden data-i18n="convoyNotConnected">Connect your client first (enter your pairing code).</p>
-        <p class="settingsHint" id="convoyUnavailable" hidden></p>
-        <p class="settingsHint" data-i18n="convoyPrivacyHint">Convoy members see your position and trip data while you are in. Nothing is stored when the convoy ends. The buttons always control only your own truck.</p>
-      </div>
-      <div id="convoyIn" hidden>
-        <div class="convoyCodeRow"><span id="convoyCodeBig" class="convoyCodeBig"></span><button id="convoyCopyBtn" class="settingsLinkBtn" data-i18n="convoyCopyLink">Copy link</button></div>
-        <div id="convoyMemberList" class="convoyMemberList"></div>
-        <div class="convoyMeta"><span id="convoySpectators"></span></div>
-        <label class="settingsRow"><input type="checkbox" id="convoyShowMarkers"> <span data-i18n="convoyShowMarkers">Show members on the map (arrows and edge chips)</span></label>
-        <label class="settingsRow"><input type="checkbox" id="convoyMute"> <span data-i18n="convoyMute">Mute convoy sounds</span></label>
-        <div class="convoyActions">
-          <button id="convoyLeaveBtn" class="settingsLinkBtn" data-i18n="convoyLeave">Leave convoy</button>
-          <button id="convoyCloseConvoyBtn" class="settingsLinkBtn danger" hidden data-i18n="convoyCloseConvoy">End convoy for everyone</button>
-        </div>
-      </div>
-      <button id="convoyModalClose" data-modal-close data-i18n="close">Close</button>
-    </div>
-  </div>
-
-  <div id="dlcModal" class="settingsOverlay" style="display:none;">
+<div id="dlcModal" class="settingsOverlay" style="display:none;">
     <div class="settingsPanel">
       <h3 data-i18n="dlcTitle">DLCs</h3>
       <p class="settingsAbout" data-i18n="dlcHint">Uncheck the map DLCs you do not own and routes will avoid their roads. If there is no way around one, the route uses it anyway and tells you.</p>
@@ -259,7 +742,7 @@ if (/[?&]cab=1(&|$)/.test(location.search)) document.documentElement.classList.a
     </div>
   </div>
 
-  <div id="modsModal" class="settingsOverlay" style="display:none;">
+<div id="modsModal" class="settingsOverlay" style="display:none;">
     <div class="settingsPanel">
       <h3 data-i18n="modsTitle">Map mods</h3>
 
@@ -295,7 +778,7 @@ if (/[?&]cab=1(&|$)/.test(location.search)) document.documentElement.classList.a
     </div>
   </div>
 
-  <div id="poiModal" class="settingsOverlay" style="display:none;">
+<div id="poiModal" class="settingsOverlay" style="display:none;">
     <div class="settingsPanel poiPanel">
       <button id="poiCloseX" class="panelCloseX" type="button" data-i18n-title="close" title="Close" aria-label="Close">×</button>
       <h3 data-i18n="poiTitle">Find nearby</h3>
@@ -319,7 +802,7 @@ if (/[?&]cab=1(&|$)/.test(location.search)) document.documentElement.classList.a
     </div>
   </div>
 
-  <div id="waypointModal" class="settingsOverlay" style="display:none;">
+<div id="waypointModal" class="settingsOverlay" style="display:none;">
     <div class="settingsPanel">
       <h3 data-i18n="waypointModalTitle">Waypoint added</h3>
       <p data-i18n="waypointModalQuestion">Did you also set this point as a waypoint in the game's own GPS/map?</p>
@@ -330,32 +813,164 @@ if (/[?&]cab=1(&|$)/.test(location.search)) document.documentElement.classList.a
       <p class="waypointModalExplain" data-i18n="waypointModalExplain">If you set it in-game too, the game's own ETA/distance already account for the detour, so we don't touch those numbers - we just draw the route through this point. If not, the game has no idea about this point, so we calculate our own distance/time through it separately (shown as "with waypoint" under the ETA rows) - the game's own numbers will keep ignoring the detour.</p>
     </div>
   </div>
-  <div id="status" data-i18n="notConnected">Not connected</div>
-  <div id="setupHints" class="setupHints">
+
+<div id="customBtnModal" class="settingsOverlay" style="display:none;">
+    <div class="settingsPanel">
+      <h3 data-i18n="customBtnModalTitle">Custom button</h3>
+      <p class="waypointModalExplain" data-i18n="customBtnExplain">The client presses this key in the game, exactly like the built-in buttons. Bind the same key to something in the game's controls.</p>
+      <div class="keybindRow"><span data-i18n="customBtnLabel">Label</span><input type="text" id="customBtnTitle" maxlength="14" style="width:140px" /></div>
+      <div class="keybindRow" style="margin-top:0.5rem"><span data-i18n="customBtnKey">Key</span><input type="text" id="customBtnKey" maxlength="24" style="width:140px" data-i18n-placeholder="customBtnKeyPlaceholder" placeholder="Press a key…" /></div>
+      <p class="waypointModalExplain" data-i18n="customBtnKeyHint">Click the field and press the key (Ctrl / Shift / Alt combos work). Letters, digits, F1–F24, numpad and the usual punctuation.</p>
+      <div class="waypointModalButtons">
+        <button id="customBtnSave" data-i18n="save">Save</button>
+        <button id="customBtnDelete" class="secondary" data-i18n="customBtnDelete">Delete</button>
+        <button id="customBtnCancel" class="secondary" data-modal-close data-i18n="close">Close</button>
+      </div>
+    </div>
+  </div>
+
+<div id="keybindsModal" class="settingsOverlay" style="display:none;">
+    <div class="settingsPanel">
+      <h3 data-i18n="keybindsModalTitle">Remap keys</h3>
+      <p class="waypointModalExplain" data-i18n="keybindsModalExplain">Keys must match your in-game control settings. Leave a field empty to leave that command unassigned.</p>
+      <div id="keybindsList"></div>
+      <div class="waypointModalButtons">
+        <button id="keybindsSaveBtn" data-i18n="save">Save</button>
+        <button id="keybindsCloseBtn" class="secondary" data-modal-close data-i18n="close">Close</button>
+      </div>
+    </div>
+  </div>
+
+<div id="tourOverlay" class="tourOverlay" style="display:none;">
+    <div id="tourTooltip" class="tourTooltip">
+      <p id="tourText"></p>
+      <div class="tourButtons">
+        <button id="tourSkipBtn" class="secondary" data-i18n="tourSkip">Skip</button>
+        <button id="tourNextBtn" data-i18n="tourNext">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Hidden compatibility container for legacy desktop elements -->
+  <div id="legacyCompatWrap" style="display:none !important;" aria-hidden="true">
+    <div class="setup" id="setupRow">
+    <input id="backendUrl" value="wss://truck-companion-production.up.railway.app" size="34" style="display:none" />
+    <div class="connectGroup" id="connectGroup">
+      <input id="code" data-i18n-placeholder="pairingCode" maxlength="8" style="text-transform:uppercase" />
+      <button id="connectBtn" data-i18n="connect">Connect</button>
+    </div>
+    <div class="statusChip" id="statusChip" hidden>
+      <span class="statusDot" id="statusDot"></span>
+      <span id="statusChipText"></span><span id="spectatorCode" hidden></span>
+      <button id="changeCodeBtn" class="chipBtn" data-i18n-title="changeCode" title="Use another code">✎</button>
+    </div>
+    <div class="topActions">
+      <button class="iconBtn secondary" id="unitToggle" data-i18n-title="toggleUnits" title="Toggle units">km</button>
+      <select class="iconBtn secondary langSelect" id="langSelect" data-i18n-title="toggleLanguage" title="Language">
+        <option value="en" title="English">EN</option>
+        <option value="es" title="Español">ES</option>
+        <option value="de" title="Deutsch">DE</option>
+        <option value="fr" title="Français">FR</option>
+        <option value="pt" title="Português (BR)">PT</option>
+        <option value="pl" title="Polski">PL</option>
+        <option value="tr" title="Türkçe">TR</option>
+        <option value="ru" title="Русский">RU</option>
+      </select>
+      <button class="iconBtn secondary" id="modsBtn" data-i18n-title="modsTitle" title="Map mods"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 7h4a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-4v-3a1.5 1.5 0 0 0-3 0v3H7a2 2 0 0 1-2-2v-4h3a1.5 1.5 0 0 0 0-3H5V9a2 2 0 0 1 2-2h4V4a1.5 1.5 0 0 1 3 0v3z"/></svg></button>
+      <a class="iconBtn secondary discord" id="discordBtn" href="https://discord.gg/K7Xq4628tg" target="_blank" rel="noopener" data-i18n-title="joinDiscord" title="Join our Discord"><svg viewBox="0 0 127.14 96.36" width="18" height="18" fill="currentColor"><path d="M107.7,8.07A105.15,105.15,0,0,0,81.47,0a72.06,72.06,0,0,0-3.36,6.83A97.68,97.68,0,0,0,49,6.83,72.37,72.37,0,0,0,45.64,0,105.89,105.89,0,0,0,19.39,8.09C2.79,32.65-1.71,56.6.54,80.21h0A105.73,105.73,0,0,0,32.71,96.36,77.7,77.7,0,0,0,39.6,85.25a68.42,68.42,0,0,1-10.85-5.18c.91-.66,1.8-1.34,2.66-2a75.57,75.57,0,0,0,64.32,0c.87.71,1.76,1.39,2.66,2a68.68,68.68,0,0,1-10.87,5.19,77,77,0,0,0,6.89,11.1A105.25,105.25,0,0,0,126.6,80.22h0C129.24,52.84,122.9,29.11,107.7,8.07ZM42.45,65.69C36.18,65.69,31,60,31,53s5-12.74,11.43-12.74S54,46,53.89,53,48.84,65.69,42.45,65.69Zm42.24,0C78.41,65.69,73.25,60,73.25,53s5-12.74,11.44-12.74S96.23,46,96.12,53,91.08,65.69,84.69,65.69Z"/></svg></a>
+      <button class="iconBtn secondary" id="convoyBtn" data-i18n-title="convoyTitle" title="Convoy (beta)" style="position:relative"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M1 10h7v5H1z"/><circle cx="3" cy="17" r="1.2"/><circle cx="6.4" cy="17" r="1.2"/><path d="M11 8h6l4 4v3H11z"/><circle cx="13.6" cy="17" r="1.3"/><circle cx="19" cy="17" r="1.3"/></svg><span id="convoyBadge" class="mapBtnBadge" style="display:none">0</span></button>
+      <button class="iconBtn" id="dashBtn" data-i18n-title="dashOpenPanel" title="Dashboard panel"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 18 0"/><path d="M3 12v4h18v-4"/><path d="M12 12l4-3"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/></svg></button>
+      <button class="iconBtn" id="settingsBtn" data-i18n-title="settings" title="Settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+      <button class="iconBtn" id="helpBtn" data-i18n-title="replayTour" title="Show quick tour">?</button>
+    </div>
+  </div>
+    <div id="dashOverlay" class="dashOverlay" hidden>
+    <div class="dashOverlayBar">
+      <span class="dashOverlayTitle" data-i18n="dashTitle">Dashboard</span>
+      <div class="sizeGroup" id="dashStyleGroup" data-i18n-title="dashStyle" hidden>
+        <button class="iconBtn secondary" data-dash-style="modern" data-i18n="dashStyleModern">Modern</button>
+        <button class="iconBtn secondary" data-dash-style="classic" data-i18n="dashStyleClassic">Classic</button>
+      </div>
+      <div class="sizeGroup" id="dashSizeGroup" data-i18n-title="dashSize">
+        <button class="iconBtn secondary" data-dash-scale="0.85">S</button>
+        <button class="iconBtn secondary" data-dash-scale="1">M</button>
+        <button class="iconBtn secondary" data-dash-scale="1.2">L</button>
+      </div>
+      <button class="iconBtn" id="dashCloseBtn" data-i18n-title="dashOpenGps" title="GPS map">✕</button>
+    </div>
+    <div id="dashOverlayPanel"></div>
+  </div>
+    <div id="status" data-i18n="notConnected">Not connected</div>
+    <div id="setupHints" class="setupHints">
     <span id="mobileHint" data-i18n="mobileHint">On mobile: open trucksim-dash.com/app and enter your pairing code.</span>
     <span id="pairingDurationHint" data-i18n="pairingDurationHint">The code expires after 10 minutes if unused. Once connected, the session stays active until you quit the client (tray icon → Quit).</span>
     <span id="activePlayersHint" style="display:none;"></span>
   </div>
-  <div id="updateBanner" class="updateBanner" style="display:none;">
+    <div id="updateBanner" class="updateBanner" style="display:none;">
     <span id="updateBannerText"></span>
     <a id="updateBannerLink" href="#" target="_blank" rel="noopener" data-i18n="updateBannerLink">Download</a>
     <button id="updateBannerClose" aria-label="Dismiss">✕</button>
   </div>
-
-  <!-- Fuera del mapa a proposito: adentro tapaba justo lo que se quiere
-       mover. Solo aparece mientras se acomoda. -->
-  <div id="layoutBar" class="layoutBar" style="display:none">
+    <div id="layoutBar" class="layoutBar" style="display:none">
     <span data-i18n="layoutHint">Drag whatever you want to move; the handle moves a whole button group</span>
     <label class="layoutBarGrid"><input type="checkbox" id="layoutGridChk" checked /> <span data-i18n="layoutGrid">Grid</span></label>
     <button id="layoutFsBtn" class="settingsLinkBtn" data-i18n-title="toggleFullscreen" title="Fullscreen">⛶</button>
     <button id="layoutResetBtn" class="settingsLinkBtn" data-i18n="layoutReset">Reset</button>
     <button id="layoutDoneBtn" class="settingsLinkBtn" data-i18n="layoutDone">Done</button>
   </div>
-
-  <div class="layout" id="layout">
+    <div class="layout" id="layout">
    <div class="rowWrap">
+    <nav class="cabinDock" id="oldCabinDock" aria-label="Car Display Cabin Infotainment Dock">
+      <div class="dockHeader">
+        <button type="button" class="dockHomeBtn" id="oldDockHomeBtn" title="Home (Toggle Dashboard / Map)">
+          <span class="homeIconGrid"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+        </button>
+        <div class="dockTimeBlock">
+          <span class="dockClock" id="oldDockClock">--:--</span>
+          <div class="dockSignalRow">
+            <span class="dockSignalBars" title="Signal"><i></i><i></i><i></i><i></i></span>
+            <span class="dockStatusDot" id="oldDockStatusDot" title="ETS2 Telemetry"></span>
+          </div>
+        </div>
+      </div>
+      <div class="dockNav">
+        <button type="button" class="dockBtn active" id="oldDockSplitBtn" title="Dashboard (Split Map + Cards)">
+          <div class="dockIconSquircle squircleDash">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="3" y="3" width="8" height="18" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+          </div>
+          <span>Dashboard</span>
+        </button>
+        <button type="button" class="dockBtn" id="oldDockMapBtn" title="Full Navigation Map">
+          <div class="dockIconSquircle squircleMap">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 6 9 3 15 6 21 3 21 18 15 21 9 18 3 21"/><line x1="9" y1="3" x2="9" y2="18"/><line x1="15" y1="6" x2="15" y2="21"/></svg>
+          </div>
+          <span>Map</span>
+        </button>
+        <button type="button" class="dockBtn" id="oldDockMusicBtn" title="In-Game Music Player">
+          <div class="dockIconSquircle squircleMusic">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M12 3v10.55c-.59-.34-1.27-.55-2-.55-2.21 0-4 1.79-4 4s1.79 4 4 4 4-1.79 4-4V7h4V3h-6z"/></svg>
+            <span class="dockMusicPlayingWave"><i></i><i></i><i></i></span>
+          </div>
+          <span>Music</span>
+        </button>
+        <button type="button" class="dockBtn" id="oldDockGaugesBtn" title="Gauges &amp; Instrument Cluster">
+          <div class="dockIconSquircle squircleGauges">
+            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 14l4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+          </div>
+          <span>Gauges</span>
+        </button>
+      </div>
+      <div class="dockFooter">
+        <button type="button" class="dockMiniBtn" id="dockCmdBtn" title="Toggle Truck Controls Drawer">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 12h4M9 10v4"/><circle cx="16.5" cy="10.5" r="1"/><circle cx="16.5" cy="13.5" r="1"/></svg>
+        </button>
+        <button type="button" class="dockMiniBtn" id="oldDockFsBtn" title="Toggle Fullscreen Immersion">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+        </button>
+      </div>
+    </nav>
     <div id="mapPanel">
-      <div id="mapCanvas"></div>
+      <div id="oldMapCanvas"></div>
       <!-- El mapa se mudo a la ventana flotante (pipMapIn en app.js) -->
       <div id="mapAway" class="mapAway" hidden>
         <p data-i18n="pipMapAway">The map is in the floating window.</p>
@@ -418,6 +1033,16 @@ if (/[?&]cab=1(&|$)/.test(location.search)) document.documentElement.classList.a
 
       <div id="navPanel" class="navPanel" style="display:none;"></div>
 
+      <button type="button" id="floatingFsExitBtn" class="floatingFsExitBtn" title="Exit Fullscreen Immersion" hidden>
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3v3a2 2 0 0 1-2 2H3m18 0h-3a2 2 0 0 1-2-2V3m0 18v-3a2 2 0 0 1 2-2h3M3 16h3a2 2 0 0 1 2 2v3"/></svg>
+        <span>Exit Fullscreen</span>
+      </button>
+
+      <div id="iosPwaHint" class="iosPwaHint" hidden>
+        <span>For 100% borderless Car Display on iPhone: tap <b>Share ⎋</b> → <b>Add to Home Screen</b></span>
+        <button type="button" id="iosPwaHintClose" aria-label="Close hint">✕</button>
+      </div>
+
       <!-- Vista de cabina (?cab=1): el giro arriba y la velocidad y la
            llegada abajo, en grande, para la pantalla del GPS del camion
            (initCab y refreshCab en app.js). Tapa el mapa para que un clic
@@ -466,6 +1091,14 @@ if (/[?&]cab=1(&|$)/.test(location.search)) document.documentElement.classList.a
             </div>
           </div>
         </div>
+        <div id="miniMusicPill" class="miniMusicPill" hidden>
+          <div class="miniMusicText">
+            <span class="miniMusicTitle" id="miniMusicTitle">—</span>
+            <span class="miniMusicArtist" id="miniMusicArtist"></span>
+          </div>
+          <button type="button" class="miniMusicBtn" data-music-action="music_play_pause" id="miniMusicPlayBtn" title="Play / Pause">⏯</button>
+          <button type="button" class="miniMusicBtn" data-music-action="music_next" title="Next track">⏭</button>
+        </div>
 <div class="mapBtnGroup" id="topRightBtns">
         <button id="panelToggleBtn" class="mapBtn" data-i18n-title="togglePanel" title="Show/hide info">☰</button>
         <button id="poiBtn" class="mapBtn" data-i18n-title="poiTitle" title="Find nearby"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></button>
@@ -483,8 +1116,11 @@ if (/[?&]cab=1(&|$)/.test(location.search)) document.documentElement.classList.a
       <div class="panelPage" id="infoPageContent">
       <div class="speedRow">
         <div class="limitSign" id="limitSign">--</div>
-        <div>
-          <div class="speedBig" id="speedBig">--</div>
+        <div class="speedMainBlock">
+          <div class="speedGearWrap">
+            <div class="speedBig" id="speedBig">--</div>
+            <span class="speedGearBadge" id="speedGearBadge">N</span>
+          </div>
           <div class="speedUnit" id="speedUnitLabel">km/h</div>
           <div class="roadBadge" id="roadBadge" style="display:none"></div>
         </div>
@@ -500,12 +1136,77 @@ if (/[?&]cab=1(&|$)/.test(location.search)) document.documentElement.classList.a
           <div id="fuelRangeLine">-</div>
           <div id="fuelAvgLine">-</div>
         </div>
+        <div class="speedRpmTrack" id="speedRpmTrack"><div class="speedRpmFill" id="speedRpmFill"></div></div>
       </div>
 
       <div id="panelEmpty">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2 14h9V8H2zM11 10h4l3 3v1h-7z"/><circle cx="5" cy="16.5" r="1.6"/><circle cx="15" cy="16.5" r="1.6"/></svg>
         <span class="emptyTitle" data-i18n="panelEmptyTitle">Waiting for the game</span>
         <span data-i18n="panelEmptyBody">Trip, truck and session data show up here as soon as the game starts sending telemetry.</span>
+      </div>
+
+      <!-- Apple CarPlay Turn & Navigation Card (Legacy fallback) -->
+      <div class="card carplayTurnCard" id="oldCarplayTurnCard" hidden>
+        <div class="cpTurnHead">
+          <span class="cpTurnBadge">NAVIGATION</span>
+          <span class="cpTurnCity" id="oldCpTurnCity"></span>
+        </div>
+        <div class="cpTurnMain">
+          <div class="cpTurnIconBadge" id="oldCpTurnIcon">
+            <svg viewBox="0 0 24 30" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 28V17"/><path d="M12 17l6-6"/><polygon points="18,11 18,17 12,11" fill="#fff" stroke="none"/></svg>
+          </div>
+          <div class="cpTurnContent">
+            <div class="cpTurnDist" id="oldCpTurnDist">--</div>
+            <div class="cpTurnStreet" id="oldCpTurnStreet">Continue on route</div>
+            <div class="cpTurnNext" id="oldCpTurnNext" hidden></div>
+            <div class="cpTurnLanes" id="oldCpTurnLanes"></div>
+          </div>
+        </div>
+        <div class="cpTurnEtaRow">
+          <span class="cpEtaStat"><b id="oldCpEtaArrival">--:--</b> <span>Arrival</span></span>
+          <span class="cpEtaStat"><b id="oldCpEtaRemain">--</b> <span>Remaining</span></span>
+          <span class="cpEtaStat"><b id="oldCpEtaDist">--</b> <span>Distance</span></span>
+        </div>
+      </div>
+
+      <div class="card musicCard" id="oldMusicCard">
+        <div class="cardTitle cardTitleRow">
+          <span class="musicHeadLeft">
+            <span class="musicEq" id="oldMusicEq" aria-hidden="true"><i></i><i></i><i></i></span>
+            <span id="oldMusicStatusLabel">In-Game Music</span>
+          </span>
+          <span class="musicHeadRight">
+            <span class="musicTrackIdx" id="oldMusicTrackIdx"></span>
+            <button type="button" class="musicRadioKeyBtn" data-music-action="toggle_radio_window" title="Open in-game Radio / Music window (R)">R</button>
+          </span>
+        </div>
+        <div class="musicNowPlaying">
+          <div class="musicTitle" id="oldMusicTitle">No track detected</div>
+          <div class="musicArtist" id="oldMusicArtist">ETS2 Music Library</div>
+        </div>
+        <div class="musicProgressWrap" id="oldMusicProgressWrap" hidden>
+          <div class="musicProgressTrack"><div class="musicProgressBar" id="oldMusicProgressBar"></div></div>
+          <div class="musicTimeRow"><span id="oldMusicElapsed">0:00</span><span id="oldMusicDuration">0:00</span></div>
+        </div>
+        <div class="musicNextLine" id="oldMusicNextLine" hidden></div>
+        <div class="musicControlsRow">
+          <button type="button" class="musicCtrlBtn" data-music-action="music_prev" title="Previous track (PgUp)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg>
+          </button>
+          <button type="button" class="musicCtrlBtn primary" id="oldMusicPlayPauseBtn" data-music-action="music_play_pause" title="Play / Pause (/)">
+            <svg id="oldMusicPlayIcon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+            <svg id="oldMusicPauseIcon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="display:none"><path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/></svg>
+          </button>
+          <button type="button" class="musicCtrlBtn" data-music-action="music_next" title="Next track (PgDn)">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg>
+          </button>
+          <button type="button" class="musicCtrlBtn vol" data-music-action="music_vol_down" title="Volume down (,)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M7 9v6h4l5 5V4l-5 5H7z"/></svg><span>−</span>
+          </button>
+          <button type="button" class="musicCtrlBtn vol" data-music-action="music_vol_up" title="Volume up (.)">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02z"/></svg><span>+</span>
+          </button>
+        </div>
       </div>
 
       <div class="card">
@@ -665,55 +1366,20 @@ if (/[?&]cab=1(&|$)/.test(location.search)) document.documentElement.classList.a
       </div>
     </div>
   </div>
-
-  <div id="customBtnModal" class="settingsOverlay" style="display:none;">
-    <div class="settingsPanel">
-      <h3 data-i18n="customBtnModalTitle">Custom button</h3>
-      <p class="waypointModalExplain" data-i18n="customBtnExplain">The client presses this key in the game, exactly like the built-in buttons. Bind the same key to something in the game's controls.</p>
-      <div class="keybindRow"><span data-i18n="customBtnLabel">Label</span><input type="text" id="customBtnTitle" maxlength="14" style="width:140px" /></div>
-      <div class="keybindRow" style="margin-top:0.5rem"><span data-i18n="customBtnKey">Key</span><input type="text" id="customBtnKey" maxlength="24" style="width:140px" data-i18n-placeholder="customBtnKeyPlaceholder" placeholder="Press a key…" /></div>
-      <p class="waypointModalExplain" data-i18n="customBtnKeyHint">Click the field and press the key (Ctrl / Shift / Alt combos work). Letters, digits, F1–F24, numpad and the usual punctuation.</p>
-      <div class="waypointModalButtons">
-        <button id="customBtnSave" data-i18n="save">Save</button>
-        <button id="customBtnDelete" class="secondary" data-i18n="customBtnDelete">Delete</button>
-        <button id="customBtnCancel" class="secondary" data-modal-close data-i18n="close">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="keybindsModal" class="settingsOverlay" style="display:none;">
-    <div class="settingsPanel">
-      <h3 data-i18n="keybindsModalTitle">Remap keys</h3>
-      <p class="waypointModalExplain" data-i18n="keybindsModalExplain">Keys must match your in-game control settings. Leave a field empty to leave that command unassigned.</p>
-      <div id="keybindsList"></div>
-      <div class="waypointModalButtons">
-        <button id="keybindsSaveBtn" data-i18n="save">Save</button>
-        <button id="keybindsCloseBtn" class="secondary" data-modal-close data-i18n="close">Close</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="tourOverlay" class="tourOverlay" style="display:none;">
-    <div id="tourTooltip" class="tourTooltip">
-      <p id="tourText"></p>
-      <div class="tourButtons">
-        <button id="tourSkipBtn" class="secondary" data-i18n="tourSkip">Skip</button>
-        <button id="tourNextBtn" data-i18n="tourNext">Next</button>
-      </div>
-    </div>
   </div>
 
 <script src="vendor/maplibre-gl-4.7.1.js"></script>
 <script src="vendor/pmtiles-3.2.0.js"></script>
 <script src="vendor/proj4-2.15.0.js"></script>
-<script src="variants.js?v=20261017h"></script>
-<script src="pure.js?v=20261017h"></script>
-<script src="i18n.js?v=20261017h"></script>
-<script src="i18n_en_es.js?v=20261017h"></script>
-<script src="../dash/dash.js?v=20261017h"></script>
-<script src="../dash/classic.js?v=20261017h"></script>
-<script src="app.js?v=20261017h"></script>
-<script src="convoy.js?v=20261017h"></script>
-<script src="livemap.js?v=20261017h"></script>
+<script src="variants.js?v=20261018c"></script>
+<script src="pure.js?v=20261018c"></script>
+<script src="i18n.js?v=20261018c"></script>
+<script src="i18n_en_es.js?v=20261018c"></script>
+<script src="../dash/dash.js?v=20261018c"></script>
+<script src="../dash/classic.js?v=20261018c"></script>
+<script src="app.js?v=20261018c"></script>
+<script src="convoy.js?v=20261018c"></script>
+<script src="livemap.js?v=20261018c"></script>
 </body>
 </html>
+

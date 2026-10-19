@@ -120,18 +120,28 @@
   .emptyStateDemo { display: block; margin-top: 0.5rem; font-size: 0.8rem; color: var(--muted); text-decoration: underline; }
   .emptyStateLink { display: inline-block; margin-top: 0.7rem; background: var(--accent); color: #06121f; padding: 0.4rem 0.9rem; border-radius: 6px; font-size: 0.85rem; font-weight: 600; text-decoration: none; }
 
-  /* Modo pantalla completa: se oculta todo el header (titulo, setup, status)
-     y se saca el padding del body para que el mapa llegue de punta a punta,
-     no solo "ancho completo dentro de un margen". */
-  body.fsMode { padding: 0; }
-  body.fsMode h1,
-  body.fsMode .setup,
-  body.fsMode #status,
-  body.fsMode .setupHints,
-  body.fsMode #updateBanner { display: none !important; }
-  body.fsMode .layout { border-radius: 0; }
-  body.fsMode #mapPanel { border-radius: 0; }
-  body.fsMode #infoPanel { border-radius: 0; }
+  /* Modo pantalla completa / CarPlay Immersion: se oculta todo el header (titulo, setup, status)
+     y se expande el viewport a 100dvw x 100dvh sin margenes ni scrollbars del navegador. */
+  body.fsMode, body.carplayFs {
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100vw !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+  body.fsMode h1, body.carplayFs h1,
+  body.fsMode .setup, body.carplayFs .setup,
+  body.fsMode #status, body.carplayFs #status,
+  body.fsMode .setupHints, body.carplayFs .setupHints,
+  body.fsMode #updateBanner, body.carplayFs #updateBanner { display: none !important; }
+  body.fsMode .layout, body.carplayFs .layout {
+    border-radius: 0 !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+  }
+  body.fsMode #mapPanel, body.carplayFs #mapPanel { border-radius: 0 !important; }
+  body.fsMode #infoPanel, body.carplayFs #infoPanel { border-radius: 0 !important; }
 
   /* El mapa y el panel de info son columnas lado a lado (fila en horizontal,
      mapa arriba / panel abajo en vertical). Al ocultar el panel se le lleva
@@ -1132,3 +1142,2521 @@
 
 /* App de Android: sin links de donar (ver el script del <head>). */
 .twa [data-donate] { display: none !important; }
+
+/* ---- ETS2 Cabin Infotainment Dock & In-Game Music Player ---- */
+.cab #cabinDock,
+body.editLayout #cabinDock,
+body.spectator #cabinDock,
+body.livemap #cabinDock { display: none !important; }
+
+/* ---- Apple CarPlay Cabin Infotainment & Responsive Immersion ---- */
+.cab #cabinDock,
+body.editLayout #cabinDock,
+body.spectator #cabinDock,
+body.livemap #cabinDock { display: none !important; }
+
+/* CarPlay Dock (Sidebar in landscape / Bottom bar in portrait) */
+.cabinDock {
+  flex: 0 0 68px;
+  width: 68px;
+  background: rgba(14, 17, 23, 0.88);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-right: 1px solid rgba(255, 255, 255, 0.09);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.65rem 0.35rem;
+  z-index: 950;
+  user-select: none;
+  -webkit-user-select: none;
+  box-shadow: 2px 0 20px rgba(0, 0, 0, 0.45);
+}
+
+/* CarPlay Header (Home button, Time, Signal & Telemetry) */
+.dockHeader {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.45rem;
+  width: 100%;
+  padding-bottom: 0.45rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+/* CarPlay Home Squircle Button (8-dot circle pattern) */
+.dockHomeBtn {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: background 0.15s ease, transform 0.1s ease, border-color 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+.dockHomeBtn:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.25);
+}
+.dockHomeBtn:active { transform: scale(0.93); }
+
+.homeIconGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 5px);
+  grid-gap: 3px;
+  align-items: center;
+  justify-content: center;
+}
+.homeIconGrid i {
+  display: block;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #ffffff;
+  opacity: 0.88;
+}
+.homeIconGrid i:nth-child(5) {
+  opacity: 0; /* hollow center creates the iconic CarPlay ring */
+}
+
+/* Time & Signal block */
+.dockTimeBlock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  width: 100%;
+}
+.dockClock {
+  font-size: 0.84rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6);
+}
+.dockSignalRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+}
+.dockSignalBars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 9px;
+}
+.dockSignalBars i {
+  display: block;
+  width: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.35);
+}
+.dockSignalBars i:nth-child(1) { height: 3px; background: rgba(255, 255, 255, 0.75); }
+.dockSignalBars i:nth-child(2) { height: 5px; background: rgba(255, 255, 255, 0.75); }
+.dockSignalBars i:nth-child(3) { height: 7px; background: rgba(255, 255, 255, 0.75); }
+.dockSignalBars i:nth-child(4) { height: 9px; background: rgba(255, 255, 255, 0.75); }
+
+.dockStatusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #555;
+  transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+body.connected.live .dockStatusDot {
+  background: #34c759;
+  box-shadow: 0 0 6px rgba(52, 199, 89, 0.8);
+}
+
+/* CarPlay App Squircles (Navigation, Music, Gauges) */
+.dockNav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: 100%;
+  align-items: center;
+}
+.dockBtn {
+  width: 54px;
+  min-height: 52px;
+  border-radius: 14px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--muted);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.22rem;
+  padding: 0.2rem 0.1rem;
+  cursor: pointer;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  transition: transform 0.12s ease, opacity 0.15s ease;
+}
+.dockBtn:active { transform: scale(0.92); }
+.dockBtn.active {
+  color: #ffffff;
+}
+
+.dockIconSquircle {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  border-radius: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+}
+.squircleDash {
+  background: linear-gradient(135deg, #2b3544 0%, #171f28 100%);
+  color: #6bb3ff;
+  border: 1px solid rgba(107, 179, 255, 0.2);
+}
+.squircleMap {
+  background: linear-gradient(135deg, #1877c2 0%, #0a4f85 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.squircleMusic {
+  background: linear-gradient(135deg, #e11d48 0%, #9f1239 100%);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.squircleGauges {
+  background: linear-gradient(135deg, #374151 0%, #1f2937 100%);
+  color: #94a3b8;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.dockBtn.active .dockIconSquircle {
+  box-shadow: 0 0 0 2px #ffffff, 0 4px 14px rgba(0, 0, 0, 0.6);
+  transform: translateY(-1px);
+}
+.dockBtn.playing .squircleMusic {
+  background: linear-gradient(135deg, #ff9f0a 0%, #d97706 100%);
+  border-color: #ffd27d;
+  box-shadow: 0 0 12px rgba(255, 159, 10, 0.45);
+}
+
+.dockMusicPlayingWave {
+  position: absolute;
+  right: 3px;
+  bottom: 3px;
+  display: none;
+  align-items: flex-end;
+  gap: 1.5px;
+  height: 8px;
+}
+.dockBtn.playing .dockMusicPlayingWave {
+  display: inline-flex;
+}
+.dockMusicPlayingWave i {
+  display: block;
+  width: 2px;
+  height: 3px;
+  background: #ffffff;
+  border-radius: 1px;
+  animation: musicWaveBounce 0.7s ease-in-out infinite alternate;
+}
+.dockMusicPlayingWave i:nth-child(2) { animation-delay: 0.18s; }
+.dockMusicPlayingWave i:nth-child(3) { animation-delay: 0.36s; }
+@keyframes musicWaveBounce {
+  0% { height: 2px; }
+  100% { height: 8px; }
+}
+
+/* CarPlay Dock Footer */
+.dockFooter {
+  padding-top: 0.45rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+.dockMiniBtn {
+  width: 44px;
+  height: 38px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.dockMiniBtn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+}
+.dockMiniBtn:active { transform: scale(0.92); }
+.dockMiniBtn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(59, 158, 255, 0.18);
+  box-shadow: inset 0 0 8px rgba(59, 158, 255, 0.2);
+}
+
+/* Floating Fullscreen Exit Pill on Map */
+.floatingFsExitBtn {
+  position: absolute;
+  top: calc(0.6rem + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2100;
+  background: rgba(20, 25, 34, 0.88);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 999px;
+  padding: 0.36rem 0.95rem;
+  color: #ffffff;
+  font-size: 0.76rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: none;
+  align-items: center;
+  gap: 0.4rem;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.55);
+  transition: background 0.15s ease, opacity 0.2s ease, transform 0.15s ease;
+}
+.floatingFsExitBtn:hover {
+  background: rgba(35, 42, 56, 0.95);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.floatingFsExitBtn:active { transform: translateX(-50%) scale(0.95); }
+body.fsMode .floatingFsExitBtn,
+body.carplayFs .floatingFsExitBtn {
+  display: inline-flex;
+}
+
+/* Non-intrusive iOS PWA hint banner */
+.iosPwaHint {
+  position: absolute;
+  bottom: calc(0.6rem + env(safe-area-inset-bottom, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2200;
+  width: min(92vw, 390px);
+  background: rgba(20, 25, 34, 0.94);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  padding: 0.55rem 0.85rem;
+  font-size: 0.74rem;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.6);
+  line-height: 1.35;
+}
+.iosPwaHint b { color: #6bb3ff; }
+.iosPwaHint button {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.9rem;
+  padding: 0 0.25rem;
+}
+.iosPwaHint button:hover { color: #fff; }
+
+/* Apple Maps Style CarPlay Navigation Turn Card */
+/* ==========================================================================
+   AUTHENTIC APPLE CARPLAY INFOTAINMENT OPERATING SYSTEM (CarPlay OS)
+   ========================================================================== */
+
+/* Universal Reset & Full Immersion Engine */
+html, body {
+  margin: 0 !important;
+  padding: 0 !important;
+  width: 100vw !important;
+  width: 100dvw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  overflow: hidden !important;
+  background: #000000 !important;
+  color: #ffffff !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif !important;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* CarPlay Root Shell */
+.carplayShell {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  width: 100dvw;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  display: flex;
+  flex-direction: row;
+  /* Deep dynamic iOS liquid retina OLED mesh wallpaper */
+  background: radial-gradient(130% 120% at 0% 0%, #17243c 0%, #0a101d 42%, #04060a 100%);
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
+  z-index: 10;
+}
+
+/* --------------------------------------------------------------------------
+   CarPlay System Dock
+   -------------------------------------------------------------------------- */
+.carplayDock {
+  width: 76px;
+  min-width: 76px;
+  height: 100%;
+  background: rgba(18, 20, 26, 0.88);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border-right: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 6px;
+  box-sizing: border-box;
+  z-index: 1000;
+  box-shadow: 4px 0 20px rgba(0, 0, 0, 0.4);
+}
+
+.dockStatusCluster {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 0 6px;
+  width: 100%;
+}
+.dockClock {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  font-variant-numeric: tabular-nums;
+  color: #ffffff;
+  line-height: 1.1;
+  text-align: center;
+}
+.dockSignalGroup {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 1px;
+}
+.dockSignalBars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 9px;
+}
+.dockSignalBars i {
+  width: 2.5px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 1px;
+}
+.dockSignalBars i:nth-child(1) { height: 3px; }
+.dockSignalBars i:nth-child(2) { height: 5px; }
+.dockSignalBars i:nth-child(3) { height: 7px; }
+.dockSignalBars i:nth-child(4) { height: 9px; }
+
+.dockStatusDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #ff453a;
+  box-shadow: 0 0 6px rgba(255, 69, 58, 0.8);
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+.dockStatusDot.connected {
+  background: #30d158;
+  box-shadow: 0 0 8px rgba(48, 209, 88, 0.9);
+}
+.dockStatusDot.searching {
+  background: #ff9f0a;
+  box-shadow: 0 0 8px rgba(255, 159, 10, 0.9);
+}
+
+/* Quick Launch Squircle App Icons */
+.dockAppGrid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+}
+.dockSquircleBtn {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  transition: transform 0.12s ease;
+}
+.dockSquircleBtn:active {
+  transform: scale(0.92);
+}
+.dockSquircleBtn.active .squircleIcon {
+  box-shadow: 0 0 0 2.5px #ffffff, 0 6px 16px rgba(0, 0, 0, 0.55);
+}
+.squircleIcon {
+  width: 48px;
+  height: 48px;
+  border-radius: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ffffff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 4px 12px rgba(0, 0, 0, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+.squircleIcon svg {
+  width: 25px;
+  height: 25px;
+}
+.iconDashboard { background: linear-gradient(135deg, #2563eb, #1d4ed8); }
+.iconMaps { background: linear-gradient(135deg, #10b981, #059669); }
+.iconMusic { background: linear-gradient(135deg, #ff2d55, #e11d48); }
+.iconGauges { background: linear-gradient(135deg, #8b5cf6, #6d28d9); }
+.iconTrip { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.iconControls { background: linear-gradient(135deg, #0ea5e9, #0284c7); }
+.iconServices { background: linear-gradient(135deg, #14b8a6, #0f766e); }
+.iconSettings { background: linear-gradient(135deg, #64748b, #475569); }
+
+/* Animated Music Equalizer in Music Squircle */
+.dockMusicWave {
+  position: absolute;
+  bottom: 4px;
+  display: flex;
+  gap: 2px;
+  height: 8px;
+  align-items: flex-end;
+}
+.dockMusicWave i {
+  width: 2px;
+  background: #ffffff;
+  border-radius: 1px;
+  height: 3px;
+}
+.dockSquircleBtn.playing .dockMusicWave i:nth-child(1) { animation: cpEq 0.65s infinite alternate ease-in-out; }
+.dockSquircleBtn.playing .dockMusicWave i:nth-child(2) { animation: cpEq 0.85s infinite alternate ease-in-out 0.2s; }
+.dockSquircleBtn.playing .dockMusicWave i:nth-child(3) { animation: cpEq 0.75s infinite alternate ease-in-out 0.4s; }
+@keyframes cpEq {
+  0% { height: 2px; }
+  100% { height: 8px; }
+}
+
+/* Bottom Cluster: Fullscreen + CarPlay Home Button */
+.dockBottomCluster {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.dockActionBtn {
+  width: 44px;
+  height: 36px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.dockActionBtn:active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.2);
+}
+.dockActionBtn.active {
+  background: #0a84ff;
+  border-color: #0a84ff;
+}
+
+.dockHomeBtn {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.dockHomeBtn:active, .dockHomeBtn.active {
+  transform: scale(0.92);
+  background: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.7);
+}
+.homeDotsGrid {
+  width: 24px;
+  height: 14px;
+  display: grid;
+  grid-template-columns: repeat(4, 4px);
+  grid-template-rows: repeat(2, 4px);
+  gap: 2.5px;
+  align-content: center;
+  justify-content: center;
+}
+.homeDotsGrid span {
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: #ffffff;
+}
+
+/* --------------------------------------------------------------------------
+   CarPlay Main Stage & Map Host
+   -------------------------------------------------------------------------- */
+.carplayStage {
+  flex: 1;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Shared Map Container */
+.carplayMapHost {
+  position: absolute;
+  overflow: hidden;
+  box-sizing: border-box;
+  transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  z-index: 10;
+}
+/* In Dashboard mode: Map occupies the primary left card */
+.view-dashboard .carplayMapHost {
+  top: 12px;
+  left: 12px;
+  width: calc(58% - 18px);
+  height: calc(100% - 24px);
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  opacity: 1;
+  pointer-events: auto;
+}
+/* In Full Maps mode: Map occupies 100% full screen */
+.view-maps .carplayMapHost {
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+  border: none;
+  box-shadow: none;
+  opacity: 1;
+  pointer-events: auto;
+  z-index: 50;
+}
+/* In other apps: Map is smoothly hidden */
+.view-home .carplayMapHost,
+.view-music .carplayMapHost,
+.view-gauges .carplayMapHost,
+.view-controls .carplayMapHost,
+.view-trip .carplayMapHost,
+.view-settings .carplayMapHost {
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.96);
+}
+
+#mapCanvas {
+  width: 100% !important;
+  height: 100% !important;
+  position: absolute;
+  inset: 0;
+}
+
+/* Floating Speed Cluster on Map */
+.floatingSpeedCluster {
+  position: absolute;
+  bottom: 14px;
+  left: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  z-index: 100;
+  pointer-events: none;
+}
+.floatingSpeedPill {
+  background: rgba(18, 20, 26, 0.85);
+  backdrop-filter: blur(22px) saturate(190%);
+  -webkit-backdrop-filter: blur(22px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 16px;
+  padding: 6px 14px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+}
+.floatingSpeedPill .speedBig {
+  font-size: 2.2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #ffffff;
+}
+.floatingSpeedPill .speedGearBadge {
+  font-size: 0.95rem;
+  font-weight: 800;
+  padding: 2px 7px;
+  background: #0a84ff;
+  color: #ffffff;
+  border-radius: 6px;
+  line-height: 1.2;
+}
+.floatingSpeedPill .speedUnit {
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.65);
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+/* Speed Limit Sign */
+.limitSign {
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 5px solid #ff3b30;
+  color: #111111;
+  font-size: 1.35rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  box-sizing: border-box;
+}
+.limitSign.over {
+  animation: cpLimitBlink 0.9s infinite alternate;
+}
+@keyframes cpLimitBlink {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); }
+  100% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(255, 59, 48, 0); }
+}
+
+/* Floating Map Controls */
+.floatingMapControls {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  display: flex;
+  gap: 8px;
+  z-index: 100;
+}
+.cpGlassBtn {
+  background: rgba(20, 22, 30, 0.82);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 13px;
+  color: #ffffff;
+  padding: 9px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.35);
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.cpGlassBtn:active {
+  transform: scale(0.92);
+  background: rgba(35, 40, 52, 0.9);
+}
+.cpGlassBtn.small {
+  padding: 5px 12px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  border-radius: 10px;
+}
+
+/* Fullscreen Maps Turn Island (Moved to top-right to clear action buttons) */
+.cpFloatingTurnIsland {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  left: auto;
+  background: rgba(18, 20, 26, 0.9);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 20px;
+  padding: 12px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  z-index: 110;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.view-dashboard .cpFloatingTurnIsland { display: none !important; }
+#navPanel { display: none !important; }
+.turnIslandIcon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: #30d158;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.turnIslandIcon svg {
+  width: 28px;
+  height: 28px;
+  color: #fff;
+}
+.turnIslandDist {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+.turnIslandDist:empty {
+  display: none;
+}
+.turnIslandStreet {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+/* Fullscreen Maps Route Bar */
+.cpFloatingRouteBar {
+  position: absolute;
+  bottom: 14px;
+  right: 14px;
+  background: rgba(18, 20, 26, 0.88);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  z-index: 110;
+}
+.view-dashboard .cpFloatingRouteBar { display: none !important; }
+@media (max-width: 650px) {
+  .view-maps .cpFloatingRouteBar {
+    bottom: 74px !important;
+    right: 14px !important;
+  }
+}
+.routeBarStat {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.routeBarStat b {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+.routeBarStat span {
+  font-size: 0.65rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   CarPlay App Views Container
+   -------------------------------------------------------------------------- */
+.carplayAppContainer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.cpAppView {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  pointer-events: none;
+  transform: scale(0.97);
+  transition: opacity 0.22s ease, transform 0.22s ease;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+.cpAppView.active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: scale(1);
+}
+
+/* --------------------------------------------------------------------------
+   1. CarPlay Dashboard (Split Screen: Right Stack)
+   -------------------------------------------------------------------------- */
+.view-dashboard .cpDashboardStack {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: calc(42% - 18px);
+  height: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-sizing: border-box;
+  z-index: 20;
+}
+
+/* Navigation Turn Card */
+.carplayTurnCard {
+  flex: 1.15;
+  background: rgba(24, 26, 34, 0.85);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  padding: 14px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+}
+.cpTurnHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cpTurnBadge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #30d158;
+}
+.cpTurnCity {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+}
+.cpTurnMain {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 6px 0;
+}
+.cpTurnIconBadge {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  border-radius: 14px;
+  background: #30d158;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 14px rgba(48, 209, 88, 0.4);
+}
+.cpTurnIconBadge svg {
+  width: 30px;
+  height: 30px;
+  color: #fff;
+}
+.cpTurnContent {
+  flex: 1;
+  min-width: 0;
+}
+.cpTurnDist {
+  font-size: 1.6rem;
+  font-weight: 800;
+  color: #ffffff;
+  letter-spacing: -0.3px;
+  line-height: 1.1;
+}
+.cpTurnStreet {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 2px;
+}
+.cpTurnNext {
+  font-size: 0.74rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+.cpTurnLanes {
+  margin-top: 4px;
+}
+
+.cpTurnEtaRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding-top: 8px;
+}
+.cpEtaStat {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.cpEtaStat b {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+.cpEtaStat span {
+  font-size: 0.62rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  text-transform: uppercase;
+}
+
+/* Apple Music Now Playing Card */
+.musicCard {
+  flex: 0.95;
+  background: rgba(24, 26, 34, 0.85);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  padding: 12px 18px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+  box-sizing: border-box;
+}
+.cardTitleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.musicHeadLeft {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #ff2d55;
+}
+.musicEq {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+}
+.musicEq i {
+  width: 2.5px;
+  background: #ff2d55;
+  border-radius: 1px;
+  height: 3px;
+}
+.musicCard.playing .musicEq i:nth-child(1) { animation: cpEq 0.65s infinite alternate ease-in-out; }
+.musicCard.playing .musicEq i:nth-child(2) { animation: cpEq 0.85s infinite alternate ease-in-out 0.2s; }
+.musicCard.playing .musicEq i:nth-child(3) { animation: cpEq 0.75s infinite alternate ease-in-out 0.4s; }
+
+.musicHeadRight {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.musicTrackIdx {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+.musicRadioKeyBtn {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.musicNowPlaying {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  cursor: pointer;
+  margin: 2px 0;
+}
+.musicVinylArt {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #2b3240, #161a22);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff2d55;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+.musicTextCol {
+  flex: 1;
+  min-width: 0;
+}
+.musicTitle {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.musicArtist {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-top: 1px;
+}
+
+.musicProgressWrap {
+  margin: 4px 0;
+}
+.musicProgressTrack {
+  height: 4px;
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.musicProgressBar {
+  height: 100%;
+  width: 0%;
+  background: #ff2d55;
+  border-radius: 2px;
+  transition: width 0.3s linear;
+}
+.musicTimeRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 3px;
+}
+
+.musicControlsRow {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr 1fr 0.9fr 0.9fr;
+  gap: 6px;
+}
+.musicCtrlBtn {
+  height: 38px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.15s ease;
+}
+.musicCtrlBtn:active {
+  transform: scale(0.92);
+}
+.musicCtrlBtn.primary {
+  background: #ff2d55;
+  border-color: #ff2d55;
+}
+
+/* --------------------------------------------------------------------------
+   2. CarPlay Home Screen (2-Page Swipeable Springboard)
+   -------------------------------------------------------------------------- */
+.cpAppView#cpAppHome {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 18px 0 10px 0;
+  box-sizing: border-box;
+  z-index: 60;
+  overflow: hidden;
+}
+.cpHomePagesTrack {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  flex-direction: row;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+  cursor: grab;
+}
+.cpHomePagesTrack:active {
+  cursor: grabbing;
+}
+.cpHomePagesTrack::-webkit-scrollbar { display: none; }
+.cpHomePage {
+  min-width: 100%;
+  width: 100%;
+  height: 100%;
+  scroll-snap-align: start;
+  scroll-snap-stop: always;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  padding: 0 20px;
+}
+.cpHomeGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-template-rows: repeat(2, 1fr);
+  gap: 20px 28px;
+  max-width: 680px;
+  width: 100%;
+  justify-items: center;
+  align-items: center;
+}
+.cpAppTile {
+  background: transparent;
+  border: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #ffffff;
+  transition: transform 0.15s ease, opacity 0.15s ease;
+  padding: 4px;
+  touch-action: pan-x pan-y !important;
+  -webkit-touch-callout: none;
+}
+@media (hover: hover) {
+  .cpAppTile:active {
+    transform: scale(0.92);
+  }
+}
+.cpAppTile:active .cpTileIcon {
+  filter: brightness(0.82);
+}
+.cpTileIcon * {
+  pointer-events: none;
+}
+.cpTileIcon {
+  width: 72px;
+  height: 72px;
+  border-radius: 19px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 1.5px 0 rgba(255, 255, 255, 0.32), 0 8px 24px rgba(0, 0, 0, 0.5);
+}
+.cpTileIcon svg {
+  width: 36px;
+  height: 36px;
+  color: #ffffff;
+}
+.cpAppTile span {
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: -0.2px;
+  color: rgba(255, 255, 255, 0.9);
+  text-align: center;
+}
+.iconRadio { background: linear-gradient(135deg, #f97316, #ea580c); }
+.iconWaypoints { background: linear-gradient(135deg, #06b6d4, #0891b2); }
+.iconCamera { background: linear-gradient(135deg, #6366f1, #4f46e5); }
+.iconConvoy { background: linear-gradient(135deg, #3b82f6, #1d4ed8); }
+.iconFullscreen { background: linear-gradient(135deg, #10b981, #047857); }
+.iconTrailer { background: linear-gradient(135deg, #84cc16, #65a30d); }
+.iconRecenter { background: linear-gradient(135deg, #0284c7, #0369a1); }
+.iconEco { background: linear-gradient(135deg, #22c55e, #15803d); }
+.cpHomeDots {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0;
+}
+.cpHomeDots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.32);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.cpHomeDots span:hover {
+  background: rgba(255, 255, 255, 0.6);
+}
+.cpHomeDots span.active {
+  background: #ffffff;
+  transform: scale(1.3);
+}
+
+/* --------------------------------------------------------------------------
+   3. CarPlay Music App (Full Now Playing)
+   -------------------------------------------------------------------------- */
+.cpAppView#cpAppMusic {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  padding: 24px 32px;
+  box-sizing: border-box;
+  z-index: 60;
+}
+.cpMusicContainer {
+  display: grid;
+  grid-template-columns: 1fr 1.35fr;
+  gap: 36px;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+}
+.cpMusicLeftCol {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.cpMusicCoverArt {
+  width: 210px;
+  height: 210px;
+  border-radius: 24px;
+  background: linear-gradient(135deg, #1e2230, #11141c);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #ff2d55;
+  margin-bottom: 16px;
+}
+.cpMusicSubInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1.25;
+}
+.cpMusicQueueIdx {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+.cpMusicSourceLabel {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.55);
+}
+
+.cpMusicRightCol {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  height: 100%;
+}
+.cpMusicTrackTitle {
+  font-size: 1.9rem;
+  font-weight: 800;
+  letter-spacing: -0.4px;
+  margin: 0 0 4px 0;
+  color: #ffffff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cpMusicArtist {
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+  margin: 0 0 16px 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.cpMusicScrubBar {
+  margin-bottom: 18px;
+  cursor: pointer;
+  padding: 6px 0;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+  box-sizing: border-box;
+  width: 100%;
+}
+.cpScrubTrack {
+  position: relative;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
+  overflow: visible;
+  transition: height 0.15s ease;
+}
+.cpMusicScrubBar:hover .cpScrubTrack,
+.cpMusicScrubBar.scrubbing .cpScrubTrack {
+  height: 8px;
+}
+.cpScrubFill {
+  height: 100%;
+  width: 0%;
+  background: #ff2d55;
+  border-radius: 3px;
+  pointer-events: none;
+  transition: width 0.1s linear;
+}
+.cpMusicScrubBar.scrubbing .cpScrubFill,
+.cpMusicScrubBar.scrubbing .cpScrubThumb {
+  transition: none !important;
+}
+.cpScrubThumb {
+  position: absolute;
+  top: 50%;
+  left: 0%;
+  transform: translate(-50%, -50%);
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+  transition: transform 0.15s ease;
+  z-index: 2;
+}
+.cpMusicScrubBar:hover .cpScrubThumb,
+.cpMusicScrubBar.scrubbing .cpScrubThumb {
+  transform: translate(-50%, -50%) scale(1.25);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.8), 0 0 0 3px rgba(255, 45, 85, 0.35);
+}
+.cpScrubTimes {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: 6px;
+  padding: 0 1px;
+  width: 100%;
+  box-sizing: border-box;
+  overflow: visible;
+}
+#fullMusicElapsed,
+#fullMusicDuration {
+  display: inline-block;
+  white-space: nowrap;
+}
+.cpMusicPlaybackRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  margin-bottom: 16px;
+}
+.cpMusicRoundBtn {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.12s ease;
+}
+.cpMusicRoundBtn:active { transform: scale(0.92); }
+.cpMusicPlayLargeBtn {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: none;
+  background: #ff2d55;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(255, 45, 85, 0.45);
+  transition: transform 0.12s ease;
+}
+.cpMusicPlayLargeBtn:active { transform: scale(0.92); }
+
+.cpMusicVolumeRow {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.cpMusicTrackQueue {
+  background: rgba(18, 20, 26, 0.65);
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 12px 14px;
+  flex: 1;
+  min-height: 180px;
+  max-height: 280px;
+  overflow-y: auto;
+  box-sizing: border-box;
+}
+.cpQueueHeader {
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.cpQueueList {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.cpQueueItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.85rem;
+  padding: 8px 10px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.88);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+  touch-action: pan-y !important;
+  -webkit-touch-callout: none;
+}
+.cpQueueItem:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+@media (hover: hover) {
+  .cpQueueItem:active {
+    transform: scale(0.98);
+  }
+}
+.cpQueueItem:active {
+  background: rgba(255, 255, 255, 0.14);
+}
+.cpQueueItem * {
+  pointer-events: none;
+}
+.cpQueueItem.active {
+  background: rgba(255, 45, 85, 0.22);
+  color: #ffffff;
+  font-weight: 600;
+  border: 1px solid rgba(255, 45, 85, 0.35);
+}
+.qNum {
+  width: 22px;
+  font-size: 0.78rem;
+  color: rgba(255, 255, 255, 0.5);
+  font-variant-numeric: tabular-nums;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.qTrackMeta {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  line-height: 1.25;
+}
+.qTitle {
+  font-size: 0.86rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #ffffff;
+}
+.qArtist {
+  font-size: 0.74rem;
+  color: rgba(255, 255, 255, 0.6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.qDur {
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.5);
+  margin-left: 8px;
+}
+.qEqBars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  height: 10px;
+}
+.qEqBars i {
+  width: 2.5px;
+  background: #ff2d55;
+  border-radius: 1px;
+  height: 3px;
+}
+.is-playing .qEqBars i:nth-child(1) { animation: cpEq 0.65s infinite alternate ease-in-out; }
+.is-playing .qEqBars i:nth-child(2) { animation: cpEq 0.85s infinite alternate ease-in-out 0.2s; }
+.is-playing .qEqBars i:nth-child(3) { animation: cpEq 0.75s infinite alternate ease-in-out 0.4s; }
+.cpQueueEmpty {
+  padding: 24px 12px;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 0.88rem;
+  font-style: italic;
+}
+
+/* --------------------------------------------------------------------------
+   4. CarPlay Gauges App (Digital Cockpit)
+   -------------------------------------------------------------------------- */
+.cpAppView#cpAppGauges {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  padding: 18px;
+  box-sizing: border-box;
+  z-index: 60;
+}
+.cpGaugesContainer {
+  display: grid;
+  grid-template-columns: 1.35fr 1fr 1fr;
+  gap: 14px;
+  width: 100%;
+  height: 100%;
+}
+.cpGaugeCard {
+  background: rgba(24, 26, 34, 0.85);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  padding: 18px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+.cpGaugeCard.mainCluster {
+  justify-content: center;
+  gap: 20px;
+}
+.cpSpeedoWrap {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.cpGaugeGear {
+  font-size: 1.8rem;
+  font-weight: 800;
+  padding: 6px 14px;
+  border-radius: 12px;
+  background: #0a84ff;
+  color: #ffffff;
+  line-height: 1.1;
+}
+.cpSpeedoDigital {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.cpBigNum {
+  font-size: 4.2rem;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: #ffffff;
+}
+.cpUnitLabel {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.65);
+}
+.cpLimitBadge {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 5px solid #ff3b30;
+  color: #111111;
+  font-size: 1.45rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cpRpmCluster {
+  width: 100%;
+}
+.cpRpmTrack {
+  position: relative;
+  height: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 7px;
+  overflow: hidden;
+}
+.cpRpmBand.eco {
+  position: absolute;
+  left: 40%;
+  width: 24%;
+  height: 100%;
+  background: rgba(48, 209, 88, 0.25);
+}
+.cpRpmBand.redline {
+  position: absolute;
+  right: 0;
+  width: 16%;
+  height: 100%;
+  background: rgba(255, 59, 48, 0.3);
+}
+.cpRpmFill {
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #007aff 0%, #30d158 64%, #ff9f0a 84%, #ff3b30 100%);
+  border-radius: 7px;
+  transition: width 0.15s linear;
+}
+.cpRpmLabels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  margin-top: 5px;
+}
+.ecoText { color: #30d158; }
+.redText { color: #ff3b30; }
+
+.cpCardTitle {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.55);
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.cpStatRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.cpLabel {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.7);
+}
+.cpVal {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #ffffff;
+  font-variant-numeric: tabular-nums;
+}
+
+/* --------------------------------------------------------------------------
+   5. CarPlay Controls App (Tactile Switches)
+   -------------------------------------------------------------------------- */
+.cpAppView#cpAppControls {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  z-index: 60;
+}
+.cpControlsGrid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 16px;
+  width: 100%;
+  max-width: 860px;
+}
+.cpSwitchBtn {
+  background: rgba(24, 26, 34, 0.85);
+  backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  color: #ffffff;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+  transition: border-color 0.15s ease, background 0.15s ease;
+  position: relative;
+  touch-action: pan-y !important;
+  -webkit-touch-callout: none;
+}
+@media (hover: hover) {
+  .cpSwitchBtn:active { transform: scale(0.93); }
+}
+.cpSwitchBtn:active {
+  background: rgba(35, 42, 56, 0.95);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+.cpSwitchBtn * {
+  pointer-events: none;
+}
+.swLed {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.2);
+  margin-bottom: 2px;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+}
+.cpSwitchBtn.active .swLed {
+  background: #30d158;
+  box-shadow: 0 0 10px #30d158;
+}
+.swIcon {
+  font-size: 1.6rem;
+}
+.swName {
+  font-size: 0.78rem;
+  font-weight: 600;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* --------------------------------------------------------------------------
+   6. CarPlay Cargo & Deliveries App
+   -------------------------------------------------------------------------- */
+.cpAppView#cpAppTrip {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  z-index: 60;
+}
+.cpTripContainer {
+  width: 100%;
+  max-width: 720px;
+}
+.cpTripMainCard {
+  background: rgba(24, 26, 34, 0.85);
+  backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 22px;
+  padding: 24px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.cpCargoHead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.cpCargoIcon {
+  font-size: 2.2rem;
+}
+.cpCargoName {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #ffffff;
+  margin: 0;
+}
+.cpCargoWeight {
+  font-size: 0.95rem;
+  color: #0a84ff;
+  font-weight: 700;
+}
+.cpRouteSteps {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  margin-bottom: 20px;
+}
+.cpStepItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.stepDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.stepDot.start { background: #30d158; box-shadow: 0 0 8px rgba(48, 209, 88, 0.6); }
+.stepDot.end { background: #ff3b30; box-shadow: 0 0 8px rgba(255, 59, 48, 0.6); }
+.stepLabel {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.5);
+  display: block;
+}
+.stepPlace {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.cpTripStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.cpTStat {
+  display: flex;
+  flex-direction: column;
+}
+.tLabel {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.5);
+}
+.tVal {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin-top: 2px;
+}
+
+/* --------------------------------------------------------------------------
+   7. CarPlay Settings App
+   -------------------------------------------------------------------------- */
+.cpAppView#cpAppSettings {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  box-sizing: border-box;
+  z-index: 60;
+}
+.cpSettingsContainer {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+  max-width: 620px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.cpSettingsGroup {
+  background: rgba(24, 26, 34, 0.85);
+  backdrop-filter: blur(28px) saturate(190%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 18px;
+  padding: 16px 20px;
+}
+.cpGroupTitle {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.5);
+  margin-bottom: 10px;
+}
+.cpSettingsRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.95rem;
+  font-weight: 500;
+}
+.cpSettingsRow:last-child { border-bottom: none; }
+.cpBadge {
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.85);
+  transition: all 0.2s ease;
+}
+.cpBadge.live, .cpBadge.connected {
+  background: #30d158;
+  color: #000;
+}
+.cpBadge.connecting {
+  background: #ff9f0a;
+  color: #000;
+}
+.cpBadge.disconnected {
+  background: rgba(255, 69, 58, 0.22);
+  color: #ff453a;
+  border: 1px solid rgba(255, 69, 58, 0.4);
+}
+.cpCodeInputWrap {
+  display: flex;
+  gap: 8px;
+}
+.cpCodeInputWrap input {
+  width: 90px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 5px 8px;
+  color: #ffffff;
+  font-weight: 700;
+  text-align: center;
+}
+.cpSubText {
+  font-size: 0.82rem;
+  color: rgba(255, 255, 255, 0.6);
+}
+.cpSelect {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  padding: 6px 10px;
+  color: #ffffff;
+  font-weight: 600;
+}
+
+/* --------------------------------------------------------------------------
+   Screen Adaptability: Portrait (Phone Upright)
+   -------------------------------------------------------------------------- */
+/* --------------------------------------------------------------------------
+   Screen Adaptability: Portrait (Phone Upright & Vertical Screens)
+   -------------------------------------------------------------------------- */
+@media (max-aspect-ratio: 1/1) {
+  .carplayShell {
+    flex-direction: column-reverse !important;
+    height: 100dvh !important;
+    max-height: 100dvh !important;
+    width: 100dvw !important;
+    overflow: hidden !important;
+  }
+  .carplayDock {
+    width: 100% !important;
+    min-width: 100% !important;
+    height: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    min-height: calc(64px + env(safe-area-inset-bottom, 0px)) !important;
+    padding: 6px 12px calc(6px + env(safe-area-inset-bottom, 0px)) 12px !important;
+    border-right: none !important;
+    border-top: 1px solid rgba(255, 255, 255, 0.14) !important;
+    flex-direction: row !important;
+    justify-content: space-around !important;
+    box-sizing: border-box !important;
+    z-index: 1000 !important;
+  }
+  .dockStatusCluster {
+    width: auto !important;
+    flex-direction: column !important;
+    padding: 0 !important;
+    gap: 2px !important;
+  }
+  .dockClock {
+    font-size: 13px !important;
+  }
+  .dockAppGrid {
+    flex-direction: row !important;
+    width: auto !important;
+    gap: 10px !important;
+  }
+  .dockSquircleBtn {
+    width: 46px !important;
+    height: 46px !important;
+  }
+  .squircleIcon {
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 11px !important;
+  }
+  .squircleIcon svg {
+    width: 21px !important;
+    height: 21px !important;
+  }
+  .dockBottomCluster {
+    flex-direction: row !important;
+    width: auto !important;
+    gap: 8px !important;
+  }
+  .dockHomeBtn {
+    width: 46px !important;
+    height: 46px !important;
+    border-radius: 12px !important;
+  }
+  .dockActionBtn {
+    width: 38px !important;
+    height: 38px !important;
+    border-radius: 10px !important;
+  }
+
+  /* Main stage in portrait: occupies space strictly above dock */
+  .carplayStage {
+    height: calc(100% - 64px - env(safe-area-inset-bottom, 0px)) !important;
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    position: relative !important;
+    overflow: hidden !important;
+  }
+
+  /* Dashboard split view in portrait: 50% map on top, 50% stacked cards below */
+  .view-dashboard .carplayMapHost {
+    top: 8px !important;
+    left: 8px !important;
+    width: calc(100% - 16px) !important;
+    height: calc(50% - 12px) !important;
+    border-radius: 20px !important;
+  }
+  .view-dashboard .cpDashboardStack {
+    top: calc(50% + 4px) !important;
+    bottom: 8px !important;
+    left: 8px !important;
+    right: 8px !important;
+    width: calc(100% - 16px) !important;
+    height: calc(50% - 12px) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  .view-dashboard .carplayTurnCard {
+    flex: 1 !important;
+    min-height: 0 !important;
+    padding: 10px 14px !important;
+    border-radius: 18px !important;
+  }
+  .view-dashboard .cpTurnMain {
+    margin: 2px 0 !important;
+    gap: 10px !important;
+  }
+  .view-dashboard .cpTurnIconBadge {
+    width: 42px !important;
+    height: 42px !important;
+    min-width: 42px !important;
+  }
+  .view-dashboard .cpTurnIconBadge svg {
+    width: 24px !important;
+    height: 24px !important;
+  }
+  .view-dashboard .cpTurnDist {
+    font-size: 1.3rem !important;
+  }
+  .view-dashboard .cpTurnStreet {
+    font-size: 0.82rem !important;
+  }
+  .view-dashboard .cpTurnEtaRow {
+    padding-top: 4px !important;
+    font-size: 0.76rem !important;
+  }
+
+  .view-dashboard .musicCard {
+    flex: 1 !important;
+    min-height: 0 !important;
+    padding: 10px 14px !important;
+    border-radius: 18px !important;
+  }
+  .view-dashboard .cardTitleRow {
+    margin-bottom: 2px !important;
+  }
+  .view-dashboard .musicNowPlaying {
+    gap: 10px !important;
+    margin-bottom: 4px !important;
+  }
+  .view-dashboard .musicVinylArt {
+    width: 38px !important;
+    height: 38px !important;
+    min-width: 38px !important;
+  }
+  .view-dashboard .musicTitle {
+    font-size: 0.92rem !important;
+  }
+  .view-dashboard .musicArtist {
+    font-size: 0.78rem !important;
+  }
+  .view-dashboard .musicProgressWrap {
+    margin: 3px 0 !important;
+  }
+  .view-dashboard .musicControlsRow {
+    gap: 6px !important;
+  }
+  .view-dashboard .musicCtrlBtn {
+    height: 32px !important;
+    width: 36px !important;
+  }
+  .view-dashboard .musicCtrlBtn.primary {
+    width: 48px !important;
+  }
+
+  /* Full Maps in portrait */
+  .view-maps .carplayMapHost {
+    top: 0 !important;
+    left: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    border-radius: 0 !important;
+  }
+  .view-maps .cpFloatingTurnIsland {
+    top: 10px !important;
+    right: 10px !important;
+    padding: 8px 14px !important;
+    gap: 10px !important;
+    border-radius: 16px !important;
+  }
+  .view-maps .turnIslandIcon {
+    width: 38px !important;
+    height: 38px !important;
+  }
+  .view-maps .turnIslandDist {
+    font-size: 1.15rem !important;
+  }
+  .view-maps .cpFloatingRouteBar {
+    bottom: 74px !important;
+    right: 14px !important;
+    padding: 8px 14px !important;
+    gap: 12px !important;
+    border-radius: 16px !important;
+  }
+
+  /* Home Launcher in portrait */
+  .cpHomeGrid {
+    grid-template-columns: repeat(4, 1fr) !important;
+    grid-template-rows: repeat(2, 1fr) !important;
+    gap: 16px 8px !important;
+    max-width: 400px !important;
+    width: 100% !important;
+  }
+  .cpTileIcon {
+    width: 58px !important;
+    height: 58px !important;
+    border-radius: 15px !important;
+  }
+  .cpTileIcon svg {
+    width: 28px !important;
+    height: 28px !important;
+  }
+  .cpAppTile span {
+    font-size: 0.76rem !important;
+  }
+
+  /* Music app in portrait */
+  .cpAppView#cpAppMusic {
+    padding: 12px !important;
+  }
+  .cpMusicContainer {
+    grid-template-columns: 1fr !important;
+    grid-template-rows: auto 1fr !important;
+    gap: 12px !important;
+    height: 100% !important;
+  }
+  .cpMusicLeftCol {
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 14px !important;
+  }
+  .cpMusicCoverArt {
+    width: 74px !important;
+    height: 74px !important;
+    min-width: 74px !important;
+    margin-bottom: 0 !important;
+    border-radius: 14px !important;
+  }
+  .cpMusicSubInfo {
+    text-align: left !important;
+  }
+  .cpMusicRightCol {
+    display: flex !important;
+    flex-direction: column !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+  .cpMusicTrackTitle {
+    font-size: 1.25rem !important;
+    margin-bottom: 2px !important;
+  }
+  .cpMusicArtist {
+    font-size: 0.95rem !important;
+    margin-bottom: 10px !important;
+  }
+  .cpMusicScrubBar {
+    margin-bottom: 12px !important;
+  }
+  .cpMusicPlaybackRow {
+    gap: 14px !important;
+    margin-bottom: 10px !important;
+  }
+  .cpMusicRoundBtn {
+    width: 44px !important;
+    height: 44px !important;
+  }
+  .cpMusicPlayLargeBtn {
+    width: 58px !important;
+    height: 58px !important;
+  }
+  .cpMusicVolumeRow {
+    gap: 8px !important;
+    margin-bottom: 10px !important;
+  }
+  .cpMusicTrackQueue {
+    flex: 1 !important;
+    min-height: 120px !important;
+    max-height: none !important;
+    overflow-y: auto !important;
+  }
+
+  /* Gauges & Controls in portrait */
+  .cpAppView#cpAppGauges,
+  .cpAppView#cpAppControls,
+  .cpAppView#cpAppTrip,
+  .cpAppView#cpAppSettings {
+    padding: 12px !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  .cpGaugesContainer {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  .cpControlsGrid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 10px !important;
+  }
+  .cpTripContainer {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+}
+
+/* Compact Landscape (Small Screens / Mobile Landscape Displays) */
+@media (max-height: 520px) and (orientation: landscape) {
+  .carplayDock {
+    width: 62px !important;
+    min-width: 62px !important;
+    padding: 8px 4px !important;
+  }
+  .dockClock { font-size: 13px !important; }
+  .dockSquircleBtn { width: 44px !important; height: 44px !important; }
+  .squircleIcon { width: 40px !important; height: 40px !important; border-radius: 11px !important; }
+  .squircleIcon svg { width: 20px !important; height: 20px !important; }
+  .dockHomeBtn { width: 44px !important; height: 44px !important; border-radius: 12px !important; }
+  .dockActionBtn { width: 40px !important; height: 32px !important; }
+  .cpTurnIconBadge { width: 42px !important; height: 42px !important; min-width: 42px !important; }
+  .cpTurnIconBadge svg { width: 24px !important; height: 24px !important; }
+  .cpTurnDist { font-size: 1.35rem !important; }
+  .musicVinylArt { width: 36px !important; height: 36px !important; min-width: 36px !important; }
+  .musicCtrlBtn { height: 32px !important; }
+  .floatingSpeedPill .speedBig { font-size: 1.7rem !important; }
+  .limitSign { width: 40px !important; height: 40px !important; min-width: 40px !important; font-size: 1.15rem !important; }
+  .cpTileIcon { width: 56px !important; height: 56px !important; border-radius: 15px !important; }
+  .cpTileIcon svg { width: 28px !important; height: 28px !important; }
+
+  /* Compact Music App in Mobile Landscape */
+  .cpAppView#cpAppMusic {
+    padding: 10px 18px !important;
+  }
+  .cpMusicContainer {
+    grid-template-columns: 140px 1fr !important;
+    gap: 18px !important;
+  }
+  .cpMusicCoverArt {
+    width: 130px !important;
+    height: 130px !important;
+    min-width: 130px !important;
+    border-radius: 18px !important;
+    margin-bottom: 6px !important;
+  }
+  .cpMusicCoverArt svg {
+    width: 54px !important;
+    height: 54px !important;
+  }
+  .cpMusicRightCol {
+    min-width: 0 !important;
+    overflow: visible !important;
+    height: 100% !important;
+    justify-content: space-evenly !important;
+    padding-right: 6px !important;
+  }
+  .cpMusicTrackTitle {
+    font-size: 1.3rem !important;
+    margin-bottom: 2px !important;
+  }
+  .cpMusicArtist {
+    font-size: 0.9rem !important;
+    margin-bottom: 6px !important;
+  }
+  .cpMusicScrubBar {
+    margin-bottom: 8px !important;
+    padding: 4px 0 !important;
+  }
+  .cpMusicPlaybackRow {
+    gap: 14px !important;
+    margin-bottom: 6px !important;
+  }
+  .cpMusicRoundBtn {
+    width: 40px !important;
+    height: 40px !important;
+  }
+  .cpMusicRoundBtn svg {
+    width: 18px !important;
+    height: 18px !important;
+  }
+  .cpMusicPlayLargeBtn {
+    width: 52px !important;
+    height: 52px !important;
+  }
+  .cpMusicPlayLargeBtn svg {
+    width: 24px !important;
+    height: 24px !important;
+  }
+  .cpMusicVolumeRow {
+    gap: 6px !important;
+    margin-bottom: 6px !important;
+  }
+  .cpMusicVolumeRow .cpGlassBtn {
+    padding: 4px 8px !important;
+    font-size: 0.72rem !important;
+  }
+  .cpMusicTrackQueue {
+    max-height: 100px !important;
+    overflow-y: auto !important;
+  }
+}
+
+/* PC Desktop / Ultrawide Screen Adaptation */
+@media (min-width: 1200px) and (min-height: 521px) {
+  .view-dashboard .cpDashboardStack {
+    width: 460px !important;
+  }
+  .view-dashboard .carplayMapHost {
+    width: calc(100% - 484px) !important;
+  }
+}
+@media (min-width: 1400px) and (min-height: 521px) {
+  .view-dashboard .cpDashboardStack {
+    width: 480px !important;
+  }
+  .view-dashboard .carplayMapHost {
+    width: calc(100% - 504px) !important;
+  }
+  .cpMusicContainer {
+    grid-template-columns: 240px 1.4fr !important;
+    gap: 48px !important;
+  }
+  .cpMusicCoverArt {
+    width: 240px !important;
+    height: 240px !important;
+  }
+}
+
+/* Hide Fullscreen controls on Mobile / Touch devices */
+@media (hover: none) and (pointer: coarse), (max-width: 768px), (max-height: 520px) {
+  #dockFsBtn,
+  #homeFsTile,
+  #layoutFsBtn,
+  #cpFsSettingRow,
+  .floatingFsExitBtn,
+  #fullscreenBtn,
+  #oldDockFsBtn {
+    display: none !important;
+  }
+}
+
+body.is-mobile-device #dockFsBtn,
+body.is-mobile-device #homeFsTile,
+body.is-mobile-device #layoutFsBtn,
+body.is-mobile-device #cpFsSettingRow,
+body.is-mobile-device .floatingFsExitBtn,
+body.is-mobile-device #fullscreenBtn,
+body.is-mobile-device #oldDockFsBtn {
+  display: none !important;
+}
+
+/* ==========================================================================
+   Universal Touch & Drag Scroll Engine: Smooth scrolling on objects & cards
+   ========================================================================== */
+.carplayShell,
+.carplayStage,
+.carplayAppContainer {
+  touch-action: pan-x pan-y;
+}
+
+/* Horizontal swipe track (Home launcher & tiles) */
+.cpHomePagesTrack,
+.cpHomePage,
+.cpHomeGrid,
+.cpAppTile,
+.cpAppTile * {
+  touch-action: pan-x pan-y !important;
+  -webkit-touch-callout: none;
+}
+
+/* Vertical scroll containers & objects (Music queue, Controls, Gauges, Trip, Settings) */
+.cpAppView#cpAppControls,
+.cpAppView#cpAppGauges,
+.cpAppView#cpAppTrip,
+.cpAppView#cpAppSettings {
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch !important;
+}
+
+.cpControlsGrid,
+.cpSwitchBtn,
+.cpSwitchBtn *,
+.cpMusicTrackQueue,
+.cpQueueList,
+.cpQueueItem,
+.cpQueueItem *,
+.cpSettingsContainer,
+.cpSettingsContainer *,
+.cpSettingsGroup,
+.cpSettingsGroup *,
+.cpGaugesContainer,
+.cpGaugesContainer *,
+.cpTripContainer,
+.cpTripContainer * {
+  touch-action: pan-y !important;
+  -webkit-touch-callout: none;
+}

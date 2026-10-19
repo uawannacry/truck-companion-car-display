@@ -54,7 +54,7 @@ RECONNECT_DELAY_SECONDS = 3.0
 # Se bumpea a mano en cada release nueva del .exe (junto con /admin/stats/seed
 # {"latest_client_version": "..."} en el backend) - se manda en cada payload
 # para que /app pueda avisar si el cliente conectado quedo desactualizado.
-CLIENT_VERSION = "1.5.31"
+CLIENT_VERSION = "1.5.32"
 red.AGENTE = f"TruckDash/{CLIENT_VERSION}"
 
 # Comandos que la web puede mandar para simular una tecla en el juego. Estos
@@ -76,6 +76,12 @@ DEFAULT_KEYBINDS = {
     "toggle_infotainment": None,
     "toggle_lift_axle": None,
     "toggle_wipers": "p",
+    "music_play_pause": "/",
+    "music_next": "pagedown",
+    "music_prev": "pageup",
+    "music_vol_up": ".",
+    "music_vol_down": ",",
+    "toggle_radio_window": "r",
 }
 
 GAME_WINDOW_TITLES = ("Euro Truck Simulator 2", "American Truck Simulator")
@@ -107,6 +113,12 @@ ACTION_TO_SCS_ACTION = {
     "toggle_infotainment": "infotainment",
     "toggle_lift_axle": "liftaxle",
     "toggle_wipers": "wipers",
+    "music_play_pause": "radiotoggle",
+    "music_next": "radionext",
+    "music_prev": "radioprev",
+    "music_vol_up": "radioup",
+    "music_vol_down": "radiodown",
+    "toggle_radio_window": "radio",
 }
 
 # Nombres de tecla que usa SCS en controls.sii -> nombre que espera
@@ -278,16 +290,24 @@ def installed_map_dlcs(game_root: str, game: str) -> list | None:
     return sorted(i for archivo, i in MAP_DLC_FILES.get(game, {}).items() if archivo in nombres)
 
 
+def game_root_from_bin_dir(bin_dir: str) -> str:
+    """Carpeta del juego (la de los .scs) a partir de bin/win_x64 o .app/Contents/MacOS."""
+    raiz = os.path.dirname(os.path.dirname(os.path.normpath(bin_dir)))
+    if raiz.lower().endswith(".app"):
+        raiz = os.path.dirname(raiz)
+    return raiz
+
+
 def read_installed_dlcs(installs: list) -> dict:
     """{'ats': [ids], 'ets2': [ids]} de las instalaciones encontradas (las de
-    plugin_installer: bin_dir es <juego>/bin/win_x64). Con dos instalaciones
-    del mismo juego, la union. Un juego sin instalacion no aparece."""
+    plugin_installer: bin_dir es <juego>/bin/win_x64 o <juego>/<App>.app/Contents/MacOS).
+    Con dos instalaciones del mismo juego, la union. Un juego sin instalacion no aparece."""
     out = {}
     for inst in installs or []:
         game = inst.get("game")
         if game not in MAP_DLC_FILES or not inst.get("bin_dir"):
             continue
-        raiz = os.path.dirname(os.path.dirname(os.path.normpath(inst["bin_dir"])))
+        raiz = game_root_from_bin_dir(inst["bin_dir"])
         encontrados = installed_map_dlcs(raiz, game)
         if encontrados is None:
             continue
@@ -369,8 +389,12 @@ def read_map_mods() -> dict:
 def find_controls_sii_files() -> list:
     docs = documents_folder()
     files = []
+    patterns = (
+        "steam_profiles/*/controls.sii", "profiles/*/controls.sii",
+        "steam_profiles/*/controls_osx.sii", "profiles/*/controls_osx.sii",
+    )
     for game_dir in ("Euro Truck Simulator 2", "American Truck Simulator"):
-        for pattern in ("steam_profiles/*/controls.sii", "profiles/*/controls.sii"):
+        for pattern in patterns:
             files.extend(glob.glob(os.path.join(docs, game_dir, pattern)))
     # Los backups de perfil tras un update de version (ej. "steam_profiles(1.61.x).bak")
     # no son el perfil activo, hay que descartarlos.
@@ -605,10 +629,318 @@ def send_game_command(action: str, keybinds: dict) -> str:
     try:
         bring_window_to_foreground(hwnd)
         keys_compat.press(key)
+        _on_music_command(action)
         return "ok"
     except Exception as exc:
         logging.warning(f"No se pudo enviar el comando '{action}' (tecla '{key}'): {exc}")
         return str(exc)
+
+
+# ---------------------------------------------------------------------------
+# Deteccion "Now Playing" de la biblioteca musical in-game (/home/music)
+# SIN tocar FMOD: inspecciona descriptores de archivo abiertos del proceso
+# del juego (proc_pidinfo en macOS / /proc/<pid>/fd en Linux) hacia la
+# carpeta music/, mas el indice guardado en config.cfg (g_radio_saved_state)
+# y metadatos ID3v2 / nombre de archivo ("Artista - Titulo.mp3").
+# ---------------------------------------------------------------------------
+_MUSIC_EXTS = (".mp3", ".ogg", ".flac", ".aiff", ".aif", ".mod", ".s3m", ".it", ".xm")
+_SAVED_STATE_RE = re.compile(r'uset\s+g_radio_saved_state\s+"(-?\d+)"')
+_music_cache = {
+    "last_poll": 0.0,
+    "library_mtime": 0.0,
+    "library_dir": "",
+    "tracks": [],          # [{"file", "path", "artist", "title", "size", "duration"}]
+    "index": 0,
+    "playing": False,
+    "last_fd_file": None,
+    "last_fd_offset": -1,
+    "last_fd_move_ts": 0.0,
+    "optimistic_until": 0.0,
+    "payload": None,
+}
+
+
+def _parse_track_metadata(path: str) -> dict:
+    import struct
+    fname = os.path.basename(path)
+    base = os.path.splitext(fname)[0]
+    artist, title = "", base
+    if " - " in base:
+        parts = base.split(" - ", 1)
+        artist, title = parts[0].strip(), parts[1].strip()
+    size = 0
+    try:
+        size = os.path.getsize(path)
+        with open(path, "rb") as f:
+            head = f.read(16384)
+        if head[:3] == b"ID3" and len(head) >= 10:
+            ver = head[3]
+            tag_size = (
+                ((head[6] & 0x7F) << 21)
+                | ((head[7] & 0x7F) << 14)
+                | ((head[8] & 0x7F) << 7)
+                | (head[9] & 0x7F)
+            )
+            pos = 10
+            end = min(len(head), 10 + tag_size)
+            id3_title = id3_artist = None
+            while pos + 10 <= end:
+                fid = head[pos:pos + 4]
+                if not fid.strip(b"\x00"):
+                    break
+                if ver == 4:
+                    fsize = (
+                        ((head[pos + 4] & 0x7F) << 21)
+                        | ((head[pos + 5] & 0x7F) << 14)
+                        | ((head[pos + 6] & 0x7F) << 7)
+                        | (head[pos + 7] & 0x7F)
+                    )
+                else:
+                    fsize = struct.unpack(">I", head[pos + 4:pos + 8])[0]
+                if fsize <= 0 or pos + 10 + fsize > end:
+                    break
+                frame_data = head[pos + 10:pos + 10 + fsize]
+                if fid in (b"TIT2", b"TPE1") and len(frame_data) > 1:
+                    enc = frame_data[0]
+                    codec = {0: "latin1", 1: "utf-16", 2: "utf-16-be", 3: "utf-8"}.get(enc, "utf-8")
+                    val = frame_data[1:].decode(codec, "ignore").strip("\x00").strip()
+                    if val:
+                        if fid == b"TIT2":
+                            id3_title = val
+                        elif fid == b"TPE1":
+                            id3_artist = val
+                pos += 10 + fsize
+            if id3_title:
+                title = id3_title
+            if id3_artist:
+                artist = id3_artist
+    except OSError:
+        pass
+    # Si el titulo ID3 trae "Artista - Cancion" y no habia TPE1 separado, partirlo.
+    if not artist and " - " in title:
+        parts = title.split(" - ", 1)
+        artist, title = parts[0].strip(), parts[1].strip()
+    duration = max(1, int(round(size / 40000.0))) if size > 0 else 0
+    return {
+        "file": fname,
+        "path": path,
+        "artist": artist or "ETS2 Music",
+        "title": title or base,
+        "size": size,
+        "duration": duration,
+    }
+
+
+def _load_music_library(game_dir_name: str) -> list:
+    docs = documents_folder()
+    music_dir = os.path.join(docs, game_dir_name, "music")
+    try:
+        st = os.stat(music_dir)
+    except OSError:
+        return []
+    if _music_cache["library_dir"] == music_dir and _music_cache["library_mtime"] == st.st_mtime and _music_cache["tracks"]:
+        return _music_cache["tracks"]
+    try:
+        names = sorted(f for f in os.listdir(music_dir) if f.lower().endswith(_MUSIC_EXTS))
+    except OSError:
+        return []
+    tracks = [_parse_track_metadata(os.path.join(music_dir, n)) for n in names]
+    _music_cache["library_dir"] = music_dir
+    _music_cache["library_mtime"] = st.st_mtime
+    _music_cache["tracks"] = tracks
+    # Leer el indice inicial que guardo el juego en config.cfg (g_radio_saved_state)
+    cfg_path = os.path.join(docs, game_dir_name, "config.cfg")
+    try:
+        with open(cfg_path, "r", encoding="utf-8", errors="ignore") as f:
+            m = _SAVED_STATE_RE.search(f.read())
+            if m and tracks:
+                idx = int(m.group(1))
+                if 0 <= idx < len(tracks):
+                    _music_cache["index"] = idx
+    except OSError:
+        pass
+    return tracks
+
+
+def _inspect_open_music_fd() -> tuple[str | None, int]:
+    """Devuelve (nombre_de_archivo, byte_offset) si el proceso del juego tiene
+    abierto ahora mismo un archivo dentro de /music/, o (None, -1)."""
+    if sys.platform == "darwin":
+        try:
+            import struct
+            pid = window_compat.find_game_window(GAME_WINDOW_TITLES)
+            if not pid:
+                return None, -1
+            libproc = getattr(_inspect_open_music_fd, "_libproc", None)
+            if libproc is None:
+                libproc = ctypes.CDLL("/usr/lib/libproc.dylib")
+                _inspect_open_music_fd._libproc = libproc
+            buf_size = libproc.proc_pidinfo(int(pid), 1, 0, None, 0)
+            if buf_size <= 0:
+                return None, -1
+            buf = (ctypes.c_char * buf_size)()
+            nbytes = libproc.proc_pidinfo(int(pid), 1, 0, buf, buf_size)
+            if nbytes <= 0:
+                return None, -1
+            vbuf = (ctypes.c_char * 1200)()
+            for i in range(0, nbytes, 8):
+                fd, fdtype = struct.unpack_from("<iI", buf, i)
+                if fdtype != 1:  # PROX_FDTYPE_VNODE = 1
+                    continue
+                r = libproc.proc_pidfdinfo(int(pid), fd, 2, vbuf, 1200)
+                if r <= 1024:
+                    continue
+                raw_path = vbuf[r - 1024:r].split(b"\x00", 1)[0].decode("utf-8", "ignore")
+                if "/music/" in raw_path and raw_path.lower().endswith(_MUSIC_EXTS):
+                    offset = struct.unpack_from("<q", vbuf, 8)[0]
+                    return os.path.basename(raw_path), max(0, int(offset))
+        except Exception:
+            pass
+    elif sys.platform.startswith("linux"):
+        try:
+            hwnd = window_compat.find_game_window(GAME_WINDOW_TITLES)
+            info = window_compat.process_info(hwnd) if hwnd else None
+            pid = info.get("pid") if info else None
+            if pid:
+                fd_dir = f"/proc/{pid}/fd"
+                for fd_name in os.listdir(fd_dir):
+                    try:
+                        target = os.readlink(os.path.join(fd_dir, fd_name))
+                    except OSError:
+                        continue
+                    if "/music/" in target and target.lower().endswith(_MUSIC_EXTS):
+                        offset = 0
+                        try:
+                            with open(f"/proc/{pid}/fdinfo/{fd_name}", "r") as f:
+                                for line in f:
+                                    if line.startswith("pos:"):
+                                        offset = int(line.split()[1])
+                                        break
+                        except OSError:
+                            pass
+                        return os.path.basename(target), offset
+        except Exception:
+            pass
+    return None, -1
+
+
+def _on_music_command(action: str) -> None:
+    now = time.time()
+    tracks = _music_cache["tracks"]
+    n = len(tracks)
+    if action == "music_next" and n > 0:
+        _music_cache["index"] = (_music_cache["index"] + 1) % n
+        _music_cache["playing"] = True
+        _music_cache["optimistic_until"] = now + 4.0
+        _music_cache["last_poll"] = 0.0
+    elif action == "music_prev" and n > 0:
+        _music_cache["index"] = (_music_cache["index"] - 1) % n
+        _music_cache["playing"] = True
+        _music_cache["optimistic_until"] = now + 4.0
+        _music_cache["last_poll"] = 0.0
+    elif action == "music_play_pause":
+        _music_cache["playing"] = not _music_cache["playing"]
+        _music_cache["optimistic_until"] = now + 4.0
+        _music_cache["last_poll"] = 0.0
+
+
+def jump_to_music_track(target_idx: int | None, keybinds: dict) -> str:
+    if target_idx is None:
+        return "bad_index"
+    tracks = _music_cache.get("tracks") or []
+    if not tracks:
+        return "no_tracks"
+    n = len(tracks)
+    cur_idx = _music_cache["index"] % n
+    target_idx = (target_idx - 1) % n  # target_idx from web is 1-indexed
+    diff = (target_idx - cur_idx) % n
+    if diff == 0:
+        if not _music_cache.get("playing"):
+            return send_game_command("music_play_pause", keybinds)
+        return "ok"
+
+    hwnd = find_game_window()
+    if not hwnd:
+        return "no_window"
+    bring_window_to_foreground(hwnd)
+
+    if diff <= n // 2:
+        step_action = "music_next"
+        steps = diff
+    else:
+        step_action = "music_prev"
+        steps = n - diff
+
+    key = keybinds.get(step_action)
+    if not key:
+        return "no_key"
+
+    for _ in range(steps):
+        keys_compat.press(key)
+        time.sleep(0.04)
+
+    _music_cache["index"] = target_idx
+    _music_cache["playing"] = True
+    _music_cache["optimistic_until"] = time.time() + 4.0
+    _music_cache["last_poll"] = 0.0
+    return "ok"
+
+
+def detect_now_playing(game: str | None) -> dict | None:
+    if game not in ("ets2", "ats"):
+        return None
+    now = time.time()
+    if now - _music_cache["last_poll"] < 0.5 and _music_cache["payload"] is not None:
+        return _music_cache["payload"]
+    _music_cache["last_poll"] = now
+    game_dir = "American Truck Simulator" if game == "ats" else "Euro Truck Simulator 2"
+    tracks = _load_music_library(game_dir)
+    if not tracks:
+        _music_cache["payload"] = None
+        return None
+
+    fd_file, fd_offset = _inspect_open_music_fd()
+    progress = None
+    elapsed_sec = None
+    if fd_file:
+        for idx, t in enumerate(tracks):
+            if t["file"] == fd_file:
+                _music_cache["index"] = idx
+                break
+        if fd_file != _music_cache["last_fd_file"] or fd_offset != _music_cache["last_fd_offset"]:
+            _music_cache["last_fd_file"] = fd_file
+            _music_cache["last_fd_offset"] = fd_offset
+            _music_cache["last_fd_move_ts"] = now
+        if now >= _music_cache["optimistic_until"]:
+            _music_cache["playing"] = (now - _music_cache["last_fd_move_ts"]) < 2.5
+        cur = tracks[_music_cache["index"] % len(tracks)]
+        if cur["size"] > 0 and fd_offset >= 0:
+            progress = round(min(1.0, max(0.0, fd_offset / cur["size"])), 3)
+            elapsed_sec = int(round(progress * cur["duration"]))
+    else:
+        _music_cache["last_fd_file"] = None
+        _music_cache["last_fd_offset"] = -1
+        if now >= _music_cache["optimistic_until"] and _music_cache["last_fd_move_ts"] > 0:
+            _music_cache["playing"] = False
+
+    idx = _music_cache["index"] % len(tracks)
+    cur = tracks[idx]
+    nxt = tracks[(idx + 1) % len(tracks)] if len(tracks) > 1 else None
+    payload = {
+        "playing": bool(_music_cache["playing"]),
+        "title": cur["title"],
+        "artist": cur["artist"],
+        "file": cur["file"],
+        "index": idx + 1,
+        "total": len(tracks),
+        "durationSec": cur["duration"],
+        "elapsedSec": elapsed_sec,
+        "progress": progress,
+        "nextTitle": f"{nxt['artist']} — {nxt['title']}" if nxt else None,
+        "tracks": [{"title": t["title"], "artist": t["artist"], "duration": t["duration"]} for t in tracks[:60]],
+    }
+    _music_cache["payload"] = payload
+    return payload
 
 
 def http_base_url(ws_url: str) -> str:
@@ -715,11 +1047,13 @@ def build_payload(raw: dict) -> dict:
     # el SDK devuelve speedLimit en m/s igual que speed, hay que convertirlo
     # tambien - antes se mandaba crudo y quedaba ~3.6x mas bajo de lo real.
     speed_limit_kmh = (raw.get("speedLimit") or 0) * 3.6
+    game_name = {0: None, 1: "ets2", 2: "ats"}.get(raw.get("game"))
     return {
         "ts": time.time(),
         "clientVersion": CLIENT_VERSION,
         "paused": raw.get("paused"),
-        "game": {0: None, 1: "ets2", 2: "ats"}.get(raw.get("game")),
+        "game": game_name,
+        "music": detect_now_playing(game_name),
         "position": {
             "x": raw.get("coordinateX"),
             "y": raw.get("coordinateY"),
@@ -982,6 +1316,8 @@ async def handle_control_message(message: str, keybinds: dict, send) -> None:
             action = payload.get("action", "")
             if action == "custom":
                 result = await asyncio.to_thread(send_custom_key, payload.get("key"))
+            elif action == "music_jump":
+                result = await asyncio.to_thread(jump_to_music_track, payload.get("index"), keybinds)
             else:
                 result = await asyncio.to_thread(send_game_command, action, keybinds)
             if result != "ok":
